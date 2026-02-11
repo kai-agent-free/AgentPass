@@ -1,0 +1,30 @@
+{
+  "name": "@agentpass/mcp-server",
+  "version": "0.1.0",
+  "type": "module",
+  "description": "AgentPass MCP Server — tools for AI agents",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "bin": {
+    "agentpass": "./dist/cli.js",
+    "agentpass-mcp": "./dist/index.js"
+  },
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsc --watch",
+    "start": "node dist/index.js",
+    "test": "vitest run --passWithNoTests",
+    "test:watch": "vitest",
+    "clean": "rm -rf dist"
+  },
+  "dependencies": {
+    "@agentpass/core": "workspace:*",
+    "@agentpass/email-service": "workspace:*",
+    "@modelcontextprotocol/sdk": "^1.6.1",
+    "zod": "^3.24.2"
+  },
+  "devDependencies": {
+    "typescript": "^5.7.3",
+    "vitest": "^3.0.5"
+  }
+}

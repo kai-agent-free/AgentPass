@@ -1,0 +1,56 @@
+# Dependencies
+node_modules/
+
+# Build output
+dist/
+*.tsbuildinfo
+
+# Environment
+.env
+.env.local
+.env.*.local
+
+# Claude Code local settings (contains API keys)
+.claude/settings.local.json
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# Test coverage
+coverage/
+
+# Playwright
+test-results/
+playwright-report/
+
+# SQLite databases (local credential vaults)
+*.db
+*.db-shm
+*.db-wal
+!.beads/beads.db
+
+# Logs
+*.log
+
+# Temp
+tmp/
+.tmp/
+
+# Beads local files
+.beads/beads.db
+.beads/beads.db-shm
+.beads/beads.db-wal
+.beads/daemon.lock
+.beads/daemon.pid
+.beads/daemon.log
+.beads/bd.sock
+.beads/.local_version
+.beads/last-touched
+.beads/metadata.json
