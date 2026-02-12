@@ -42,6 +42,7 @@ export async function createApp(dbPath: string = DB_PATH): Promise<{ app: Hono; 
         passports: "/passports",
         verify: "/verify",
         audit: "/passports/:id/audit",
+        webhook: "/webhook/email-received",
       },
       capabilities: ["ed25519-verification", "trust-scoring", "audit-logging"],
     });
