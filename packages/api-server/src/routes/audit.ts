@@ -93,7 +93,7 @@ export function createAuditRouter(db: Client): Hono {
   });
 
   // POST /passports/:id/audit — append audit entry
-  router.post("/:id/audit", zValidator(AppendAuditSchema), async (c) => {
+  router.post("/passports/:id/audit", zValidator(AppendAuditSchema), async (c) => {
     const passportId = c.req.param("id");
 
     if (!(await passportExists(passportId))) {
@@ -127,7 +127,7 @@ export function createAuditRouter(db: Client): Hono {
   });
 
   // GET /passports/:id/audit — list audit entries with pagination
-  router.get("/:id/audit", async (c) => {
+  router.get("/passports/:id/audit", async (c) => {
     const passportId = c.req.param("id");
 
     if (!(await passportExists(passportId))) {
