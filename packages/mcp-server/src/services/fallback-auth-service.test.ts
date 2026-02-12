@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach, vi } from "vitest";
+import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import {
   FallbackAuthService,
   type BrowserOperations,
@@ -10,6 +10,8 @@ import { CredentialService } from "./credential-service.js";
 import { SessionService } from "./session-service.js";
 import { WebhookService } from "./webhook-service.js";
 import { EmailServiceAdapter } from "./email-service-adapter.js";
+import { createTestIdentityService } from "../test-helpers.js";
+import type { CredentialVault } from "@agentpass/core";
 
 // ---------------------------------------------------------------------------
 // Mock BrowserOperations
@@ -54,18 +56,19 @@ describe("FallbackAuthService", () => {
   let emailAdapter: EmailServiceAdapter;
   let browserOps: BrowserOperations;
   let service: FallbackAuthService;
+  let vault: CredentialVault;
 
   /** Helper: create an identity and return its passport_id. */
-  function createTestIdentity(name = "test-agent"): string {
-    const { passport } = identityService.createIdentity({
+  async function createTestIdentity(name = "test-agent"): Promise<string> {
+    const { passport } = await identityService.createIdentity({
       name,
       owner_email: "owner@test.com",
     });
     return passport.passport_id;
   }
 
-  beforeEach(() => {
-    identityService = new IdentityService();
+  beforeEach(async () => {
+    ({ identityService, vault } = await createTestIdentityService());
     credentialService = new CredentialService();
     sessionService = new SessionService();
     webhookService = new WebhookService();
@@ -80,6 +83,12 @@ describe("FallbackAuthService", () => {
       emailAdapter,
       browserOps,
     );
+  });
+
+  afterEach(() => {
+    if (vault) {
+      vault.close();
+    }
   });
 
   // -----------------------------------------------------------------------
@@ -107,7 +116,7 @@ describe("FallbackAuthService", () => {
 
   describe("session reuse", () => {
     it("should return session_reuse when a valid session exists", async () => {
-      const passportId = createTestIdentity();
+      const passportId = await createTestIdentity();
 
       sessionService.createSession({
         passport_id: passportId,
@@ -133,7 +142,7 @@ describe("FallbackAuthService", () => {
     });
 
     it("should NOT reuse an expired session", async () => {
-      const passportId = createTestIdentity();
+      const passportId = await createTestIdentity();
 
       sessionService.createSession({
         passport_id: passportId,
@@ -158,7 +167,7 @@ describe("FallbackAuthService", () => {
 
   describe("fallback login", () => {
     it("should attempt login when credentials exist", async () => {
-      const passportId = createTestIdentity();
+      const passportId = await createTestIdentity();
 
       credentialService.storeCredential({
         passport_id: passportId,
@@ -187,7 +196,7 @@ describe("FallbackAuthService", () => {
     });
 
     it("should create a session after successful login", async () => {
-      const passportId = createTestIdentity();
+      const passportId = await createTestIdentity();
 
       credentialService.storeCredential({
         passport_id: passportId,
@@ -205,7 +214,7 @@ describe("FallbackAuthService", () => {
     });
 
     it("should retry login on failure up to max retries", async () => {
-      const passportId = createTestIdentity();
+      const passportId = await createTestIdentity();
 
       credentialService.storeCredential({
         passport_id: passportId,
@@ -244,7 +253,7 @@ describe("FallbackAuthService", () => {
     });
 
     it("should stop retrying on CAPTCHA and return needs_human", async () => {
-      const passportId = createTestIdentity();
+      const passportId = await createTestIdentity();
 
       credentialService.storeCredential({
         passport_id: passportId,
@@ -291,7 +300,7 @@ describe("FallbackAuthService", () => {
 
   describe("fallback registration", () => {
     it("should attempt registration when no credentials exist", async () => {
-      const passportId = createTestIdentity();
+      const passportId = await createTestIdentity();
 
       const result = await service.authenticateOnService(
         passportId,
@@ -309,7 +318,7 @@ describe("FallbackAuthService", () => {
     });
 
     it("should store credentials after successful registration", async () => {
-      const passportId = createTestIdentity();
+      const passportId = await createTestIdentity();
 
       await service.authenticateOnService(passportId, "https://github.com");
 
@@ -319,7 +328,7 @@ describe("FallbackAuthService", () => {
     });
 
     it("should create a session after successful registration", async () => {
-      const passportId = createTestIdentity();
+      const passportId = await createTestIdentity();
 
       await service.authenticateOnService(passportId, "https://github.com");
 
@@ -329,7 +338,7 @@ describe("FallbackAuthService", () => {
     });
 
     it("should handle CAPTCHA during registration", async () => {
-      const passportId = createTestIdentity();
+      const passportId = await createTestIdentity();
 
       const registerFn = vi
         .fn<BrowserOperations["register"]>()
@@ -364,7 +373,7 @@ describe("FallbackAuthService", () => {
     });
 
     it("should retry registration on failure up to max retries", async () => {
-      const passportId = createTestIdentity();
+      const passportId = await createTestIdentity();
 
       const registerFn = vi
         .fn<BrowserOperations["register"]>()
@@ -396,7 +405,7 @@ describe("FallbackAuthService", () => {
     });
 
     it("should handle email verification during registration", async () => {
-      const passportId = createTestIdentity();
+      const passportId = await createTestIdentity();
 
       const registerFn = vi
         .fn<BrowserOperations["register"]>()
@@ -465,7 +474,7 @@ describe("FallbackAuthService", () => {
 
   describe("webhook events", () => {
     it("should emit agent.logged_in on successful login", async () => {
-      const passportId = createTestIdentity();
+      const passportId = await createTestIdentity();
 
       credentialService.storeCredential({
         passport_id: passportId,
@@ -487,7 +496,7 @@ describe("FallbackAuthService", () => {
     });
 
     it("should emit agent.login_failed after all login retries exhausted", async () => {
-      const passportId = createTestIdentity();
+      const passportId = await createTestIdentity();
 
       credentialService.storeCredential({
         passport_id: passportId,
@@ -521,7 +530,7 @@ describe("FallbackAuthService", () => {
     });
 
     it("should emit agent.captcha_needed when CAPTCHA detected during login", async () => {
-      const passportId = createTestIdentity();
+      const passportId = await createTestIdentity();
 
       credentialService.storeCredential({
         passport_id: passportId,
@@ -558,7 +567,7 @@ describe("FallbackAuthService", () => {
     });
 
     it("should emit agent.registered and agent.credential_stored on successful registration", async () => {
-      const passportId = createTestIdentity();
+      const passportId = await createTestIdentity();
       const emitSpy = vi.spyOn(webhookService, "emit");
 
       await service.authenticateOnService(passportId, "https://github.com");
@@ -571,7 +580,7 @@ describe("FallbackAuthService", () => {
     });
 
     it("should emit agent.captcha_needed when CAPTCHA detected during registration", async () => {
-      const passportId = createTestIdentity();
+      const passportId = await createTestIdentity();
 
       const registerFn = vi
         .fn<BrowserOperations["register"]>()
@@ -602,7 +611,7 @@ describe("FallbackAuthService", () => {
     });
 
     it("should emit agent.error after all registration retries exhausted", async () => {
-      const passportId = createTestIdentity();
+      const passportId = await createTestIdentity();
 
       const registerFn = vi
         .fn<BrowserOperations["register"]>()
@@ -635,7 +644,7 @@ describe("FallbackAuthService", () => {
 
   describe("retry behaviour", () => {
     it("should succeed on second attempt after first failure (login)", async () => {
-      const passportId = createTestIdentity();
+      const passportId = await createTestIdentity();
 
       credentialService.storeCredential({
         passport_id: passportId,
@@ -674,7 +683,7 @@ describe("FallbackAuthService", () => {
     });
 
     it("should succeed on second attempt after first failure (registration)", async () => {
-      const passportId = createTestIdentity();
+      const passportId = await createTestIdentity();
 
       const registerFn = vi
         .fn<BrowserOperations["register"]>()
@@ -715,7 +724,7 @@ describe("FallbackAuthService", () => {
 
   describe("domain extraction", () => {
     it("should extract domain from full URL", async () => {
-      const passportId = createTestIdentity();
+      const passportId = await createTestIdentity();
 
       const result = await service.authenticateOnService(
         passportId,
@@ -726,7 +735,7 @@ describe("FallbackAuthService", () => {
     });
 
     it("should handle URL without protocol", async () => {
-      const passportId = createTestIdentity();
+      const passportId = await createTestIdentity();
 
       const result = await service.authenticateOnService(
         passportId,

@@ -15,6 +15,7 @@ import { IdentityService } from "../services/identity-service.js";
 import { CredentialService } from "../services/credential-service.js";
 import { AuthService } from "../services/auth-service.js";
 import { EmailServiceAdapter } from "../services/email-service-adapter.js";
+import { CredentialVault, generateKeyPair } from "@agentpass/core";
 
 export interface DemoStepResult {
   step: number;
@@ -36,7 +37,14 @@ export interface DemoResult {
  * a structured summary of all steps.
  */
 export async function runDemo(): Promise<DemoResult> {
+  // Initialize vault with in-memory database for demo
+  const { privateKey } = generateKeyPair();
+  const vault = new CredentialVault(":memory:", privateKey);
+  await vault.init();
+
   const identityService = new IdentityService();
+  await identityService.init(vault);
+
   const credentialService = new CredentialService();
   const authService = new AuthService(identityService, credentialService);
   const emailService = new EmailServiceAdapter();
@@ -48,7 +56,7 @@ export async function runDemo(): Promise<DemoResult> {
   const step1Name = "create_identity";
   const step1Desc =
     'Create a new agent identity ("demo-agent") with an Ed25519 key pair';
-  const { passport, publicKey } = identityService.createIdentity({
+  const { passport, publicKey } = await identityService.createIdentity({
     name: "demo-agent",
     description: "Demo agent for showcase",
     owner_email: "demo@agent-mail.xyz",

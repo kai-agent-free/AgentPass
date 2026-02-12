@@ -15,6 +15,7 @@ import { SessionService } from "../services/session-service.js";
 import { WebhookService } from "../services/webhook-service.js";
 import { EmailServiceAdapter } from "../services/email-service-adapter.js";
 import { PlaywrightBrowserAdapter } from "../adapters/playwright-browser-adapter.js";
+import { CredentialVault, generateKeyPair } from "@agentpass/core";
 
 /**
  * Example: Create a FallbackAuthService with real browser automation.
@@ -26,11 +27,18 @@ import { PlaywrightBrowserAdapter } from "../adapters/playwright-browser-adapter
  * await service.close(); // Clean up browser resources
  * ```
  */
-export function createFallbackAuthServiceWithBrowser(options?: {
+export async function createFallbackAuthServiceWithBrowser(options?: {
   headless?: boolean;
   proxy?: string;
-}): FallbackAuthService & { close: () => Promise<void> } {
+}): Promise<FallbackAuthService & { close: () => Promise<void> }> {
+  // Initialize vault with in-memory database
+  const { privateKey } = generateKeyPair();
+  const vault = new CredentialVault(":memory:", privateKey);
+  await vault.init();
+
   const identityService = new IdentityService();
+  await identityService.init(vault);
+
   const credentialService = new CredentialService();
   const sessionService = new SessionService();
   const webhookService = new WebhookService();
@@ -56,6 +64,7 @@ export function createFallbackAuthServiceWithBrowser(options?: {
   return Object.assign(service, {
     close: async () => {
       await browserAdapter.close();
+      vault.close();
     },
   });
 }
@@ -70,11 +79,18 @@ export async function runBrowserIntegrationDemo(): Promise<void> {
   console.log("[Browser Integration Demo] Starting...\n");
 
   // Step 1: Create services
+  const service = await createFallbackAuthServiceWithBrowser({ headless: false });
+
+  // Initialize vault and identity service for creating test identity
+  const { privateKey } = generateKeyPair();
+  const vault = new CredentialVault(":memory:", privateKey);
+  await vault.init();
+
   const identityService = new IdentityService();
-  const service = createFallbackAuthServiceWithBrowser({ headless: false });
+  await identityService.init(vault);
 
   // Step 2: Create a test identity
-  const { passport } = identityService.createIdentity({
+  const { passport } = await identityService.createIdentity({
     name: "demo-browser-agent",
     description: "Test agent for browser integration",
     owner_email: "demo@agentpass.dev",
@@ -98,8 +114,9 @@ export async function runBrowserIntegrationDemo(): Promise<void> {
   } catch (error: unknown) {
     console.error("Demo failed:", error);
   } finally {
-    // Step 4: Clean up browser resources
+    // Step 4: Clean up browser resources and vault
     await service.close();
+    vault.close();
     console.log("\n[Browser Integration Demo] Complete.");
   }
 }

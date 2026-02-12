@@ -64,7 +64,7 @@ async function runServe(): Promise<void> {
     "@modelcontextprotocol/sdk/server/stdio.js"
   );
 
-  const server = createServer();
+  const server = await createServer();
   const transport = new StdioServerTransport();
 
   const shutdown = async () => {

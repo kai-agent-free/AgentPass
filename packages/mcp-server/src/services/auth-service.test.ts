@@ -35,7 +35,7 @@ describe("AuthService", () => {
     });
 
     it("should return fallback_register when no credentials exist", async () => {
-      const { passport } = identityService.createIdentity({
+      const { passport } = await identityService.createIdentity({
         name: "test-agent",
         owner_email: "owner@test.com",
       });
@@ -52,7 +52,7 @@ describe("AuthService", () => {
     });
 
     it("should return fallback_login when credentials exist", async () => {
-      const { passport } = identityService.createIdentity({
+      const { passport } = await identityService.createIdentity({
         name: "test-agent",
         owner_email: "owner@test.com",
       });
@@ -77,7 +77,7 @@ describe("AuthService", () => {
     });
 
     it("should extract domain from URL correctly", async () => {
-      const { passport } = identityService.createIdentity({
+      const { passport } = await identityService.createIdentity({
         name: "test-agent",
         owner_email: "owner@test.com",
       });
@@ -91,7 +91,7 @@ describe("AuthService", () => {
     });
 
     it("should handle URLs without protocol", async () => {
-      const { passport } = identityService.createIdentity({
+      const { passport } = await identityService.createIdentity({
         name: "test-agent",
         owner_email: "owner@test.com",
       });
@@ -106,8 +106,8 @@ describe("AuthService", () => {
   });
 
   describe("checkAuthStatus", () => {
-    it("should return has_credentials: false when no credentials", () => {
-      const { passport } = identityService.createIdentity({
+    it("should return has_credentials: false when no credentials", async () => {
+      const { passport } = await identityService.createIdentity({
         name: "test-agent",
         owner_email: "owner@test.com",
       });
@@ -121,8 +121,8 @@ describe("AuthService", () => {
       expect(status.service).toBe("github.com");
     });
 
-    it("should return has_credentials: true when credentials exist", () => {
-      const { passport } = identityService.createIdentity({
+    it("should return has_credentials: true when credentials exist", async () => {
+      const { passport } = await identityService.createIdentity({
         name: "test-agent",
         owner_email: "owner@test.com",
       });
