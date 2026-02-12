@@ -28,17 +28,8 @@ RUN corepack enable && corepack prepare pnpm@latest --activate
 
 WORKDIR /app
 
-# Copy everything from build stage including node_modules
-COPY --from=base /app/pnpm-workspace.yaml ./pnpm-workspace.yaml
-COPY --from=base /app/package.json ./package.json
-COPY --from=base /app/pnpm-lock.yaml ./pnpm-lock.yaml
-COPY --from=base /app/node_modules ./node_modules
-
-# Copy built packages with their dependencies
-COPY --from=base /app/packages/core ./packages/core
-COPY --from=base /app/packages/api-server ./packages/api-server
-
-WORKDIR /app/packages/api-server
+# Copy everything from build stage
+COPY --from=base /app ./
 
 # Create data directory for SQLite
 RUN mkdir -p /app/data
@@ -48,4 +39,4 @@ EXPOSE 3846
 HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
   CMD wget --no-verbose --tries=1 --spider http://localhost:3846/health || exit 1
 
-CMD ["node", "dist/index.js"]
+CMD ["node", "packages/api-server/dist/index.js"]
