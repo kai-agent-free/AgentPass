@@ -1,5 +1,6 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { apiClient } from "../api/client.js";
+import { useAuth } from "../context/AuthContext.js";
 
 interface CreateAgentModalProps {
   isOpen: boolean;
@@ -12,14 +13,22 @@ export default function CreateAgentModal({
   onClose,
   onSuccess,
 }: CreateAgentModalProps) {
+  const { owner } = useAuth();
   const [formData, setFormData] = useState({
     name: "",
     description: "",
-    ownerEmail: "owner@example.com",
+    ownerEmail: owner?.email || "",
     publicKey: "",
   });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  // Update owner email when auth changes
+  useEffect(() => {
+    if (owner?.email) {
+      setFormData((prev) => ({ ...prev, ownerEmail: owner.email }));
+    }
+  }, [owner?.email]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -45,7 +54,7 @@ export default function CreateAgentModal({
       setFormData({
         name: "",
         description: "",
-        ownerEmail: "owner@example.com",
+        ownerEmail: owner?.email || "",
         publicKey: "",
       });
       onSuccess();
@@ -62,7 +71,7 @@ export default function CreateAgentModal({
       setFormData({
         name: "",
         description: "",
-        ownerEmail: "owner@example.com",
+        ownerEmail: owner?.email || "",
         publicKey: "",
       });
       setError(null);
@@ -152,11 +161,12 @@ export default function CreateAgentModal({
               id="ownerEmail"
               required
               value={formData.ownerEmail}
-              onChange={(e) =>
-                setFormData({ ...formData, ownerEmail: e.target.value })
-              }
-              className="mt-1 block w-full rounded-lg border border-gray-300 px-4 py-2 text-sm text-gray-900 placeholder-gray-400 focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+              disabled
+              className="mt-1 block w-full rounded-lg border border-gray-300 bg-gray-50 px-4 py-2 text-sm text-gray-500 cursor-not-allowed"
             />
+            <p className="mt-1 text-xs text-gray-500">
+              Automatically set from your account
+            </p>
           </div>
 
           <div>

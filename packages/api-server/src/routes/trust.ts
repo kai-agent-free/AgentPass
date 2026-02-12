@@ -9,6 +9,7 @@ import { Hono } from "hono";
 import { z } from "zod";
 import type { Client } from "@libsql/client";
 import { zValidator, getValidatedBody } from "../middleware/validation.js";
+import { requireAuth, type OwnerPayload, type AuthVariables } from "../middleware/auth.js";
 import {
   calculateTrustScore,
   getTrustLevel,
@@ -27,6 +28,7 @@ type ReportAbuseBody = z.infer<typeof ReportAbuseSchema>;
 
 interface PassportRow {
   id: string;
+  owner_email: string;
   trust_score: number;
   status: string;
   metadata: string | null;
@@ -76,8 +78,8 @@ function buildTrustFactors(
 /**
  * Create the trust router bound to the given database instance.
  */
-export function createTrustRouter(db: Client): Hono {
-  const router = new Hono();
+export function createTrustRouter(db: Client): Hono<{ Variables: AuthVariables }> {
+  const router = new Hono<{ Variables: AuthVariables }>();
 
   /**
    * Count successful verifications for a passport based on audit log entries.
@@ -92,11 +94,12 @@ export function createTrustRouter(db: Client): Hono {
   }
 
   // GET /passports/:id/trust — return current trust details
-  router.get("/:id/trust", async (c) => {
+  router.get("/:id/trust", requireAuth(), async (c) => {
+    const owner = c.get("owner") as OwnerPayload;
     const passportId = c.req.param("id");
 
     const result = await db.execute({
-      sql: "SELECT id, trust_score, status, metadata, created_at FROM passports WHERE id = ?",
+      sql: "SELECT id, owner_email, trust_score, status, metadata, created_at FROM passports WHERE id = ?",
       args: [passportId],
     });
     const row = result.rows[0] as unknown as PassportRow | undefined;
@@ -105,6 +108,14 @@ export function createTrustRouter(db: Client): Hono {
       return c.json(
         { error: "Passport not found", code: "NOT_FOUND" },
         404,
+      );
+    }
+
+    // Verify owner owns this passport
+    if (row.owner_email !== owner.email) {
+      return c.json(
+        { error: "Access denied", code: "FORBIDDEN" },
+        403,
       );
     }
 
@@ -123,11 +134,12 @@ export function createTrustRouter(db: Client): Hono {
   });
 
   // POST /passports/:id/report-abuse — increment abuse count and recalculate
-  router.post("/:id/report-abuse", zValidator(ReportAbuseSchema), async (c) => {
+  router.post("/:id/report-abuse", requireAuth(), zValidator(ReportAbuseSchema), async (c) => {
+    const owner = c.get("owner") as OwnerPayload;
     const passportId = c.req.param("id");
 
     const result = await db.execute({
-      sql: "SELECT id, trust_score, status, metadata, created_at FROM passports WHERE id = ?",
+      sql: "SELECT id, owner_email, trust_score, status, metadata, created_at FROM passports WHERE id = ?",
       args: [passportId],
     });
     const row = result.rows[0] as unknown as PassportRow | undefined;
@@ -136,6 +148,14 @@ export function createTrustRouter(db: Client): Hono {
       return c.json(
         { error: "Passport not found", code: "NOT_FOUND" },
         404,
+      );
+    }
+
+    // Verify owner owns this passport
+    if (row.owner_email !== owner.email) {
+      return c.json(
+        { error: "Access denied", code: "FORBIDDEN" },
+        403,
       );
     }
 

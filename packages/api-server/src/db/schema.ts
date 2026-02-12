@@ -7,6 +7,21 @@
 
 import { createClient, type Client } from "@libsql/client";
 
+const OWNERS_TABLE = `
+CREATE TABLE IF NOT EXISTS owners (
+  id            TEXT PRIMARY KEY,
+  email         TEXT UNIQUE NOT NULL,
+  password_hash TEXT NOT NULL,
+  name          TEXT NOT NULL DEFAULT '',
+  verified      INTEGER NOT NULL DEFAULT 0,
+  created_at    TEXT NOT NULL,
+  updated_at    TEXT NOT NULL
+)`;
+
+const OWNERS_EMAIL_INDEX = `
+CREATE INDEX IF NOT EXISTS idx_owners_email ON owners(email)
+`;
+
 const PASSPORTS_TABLE = `
 CREATE TABLE IF NOT EXISTS passports (
   id          TEXT PRIMARY KEY,
@@ -87,6 +102,8 @@ export async function initDatabase(dbPath: string): Promise<Client> {
   await db.execute("PRAGMA foreign_keys = ON");
 
   // Run migrations
+  await db.execute(OWNERS_TABLE);
+  await db.execute(OWNERS_EMAIL_INDEX);
   await db.execute(PASSPORTS_TABLE);
   await db.execute(AUDIT_LOG_TABLE);
   await db.execute(AUDIT_LOG_INDEX);

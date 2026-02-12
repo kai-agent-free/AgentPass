@@ -10,6 +10,7 @@ import { Hono } from "hono";
 import { z } from "zod";
 import type { Client } from "@libsql/client";
 import { zValidator, getValidatedBody } from "../middleware/validation.js";
+import { requireAuth, type OwnerPayload, type AuthVariables } from "../middleware/auth.js";
 
 // --- Zod schemas ---
 
@@ -41,34 +42,43 @@ interface AuditRow {
 /**
  * Create the audit router bound to the given database instance.
  */
-export function createAuditRouter(db: Client): Hono {
-  const router = new Hono();
+export function createAuditRouter(db: Client): Hono<{ Variables: AuthVariables }> {
+  const router = new Hono<{ Variables: AuthVariables }>();
 
   /**
-   * Check that the passport exists. Returns false if not found.
+   * Check that the passport exists and belongs to the owner.
+   * Returns the owner_email if found, null otherwise.
    */
-  async function passportExists(passportId: string): Promise<boolean> {
+  async function getPassportOwner(passportId: string): Promise<string | null> {
     const result = await db.execute({
-      sql: "SELECT id FROM passports WHERE id = ?",
+      sql: "SELECT owner_email FROM passports WHERE id = ?",
       args: [passportId],
     });
-    return result.rows.length > 0;
+    const row = result.rows[0] as unknown as { owner_email: string } | undefined;
+    return row?.owner_email ?? null;
   }
 
-  // GET /audit — list all audit entries across all passports with pagination
-  router.get("/audit", async (c) => {
+  // GET /audit — list all audit entries for owner's passports with pagination
+  router.get("/audit", requireAuth(), async (c) => {
+    const owner = c.get("owner") as OwnerPayload;
     const limit = Math.min(Math.max(parseInt(c.req.query("limit") || "50", 10) || 50, 1), 200);
     const offset = Math.max(parseInt(c.req.query("offset") || "0", 10) || 0, 0);
 
+    // Filter audit entries by owner's passports
     const rowsResult = await db.execute({
-      sql: "SELECT * FROM audit_log ORDER BY created_at DESC LIMIT ? OFFSET ?",
-      args: [limit, offset],
+      sql: `SELECT a.* FROM audit_log a
+            JOIN passports p ON a.passport_id = p.id
+            WHERE p.owner_email = ?
+            ORDER BY a.created_at DESC LIMIT ? OFFSET ?`,
+      args: [owner.email, limit, offset],
     });
     const rows = rowsResult.rows as unknown as AuditRow[];
 
     const totalResult = await db.execute({
-      sql: "SELECT COUNT(*) as count FROM audit_log",
-      args: [],
+      sql: `SELECT COUNT(*) as count FROM audit_log a
+            JOIN passports p ON a.passport_id = p.id
+            WHERE p.owner_email = ?`,
+      args: [owner.email],
     });
     const totalRow = totalResult.rows[0] as unknown as { count: number };
 
@@ -93,13 +103,23 @@ export function createAuditRouter(db: Client): Hono {
   });
 
   // POST /passports/:id/audit — append audit entry
-  router.post("/passports/:id/audit", zValidator(AppendAuditSchema), async (c) => {
+  router.post("/passports/:id/audit", requireAuth(), zValidator(AppendAuditSchema), async (c) => {
+    const owner = c.get("owner") as OwnerPayload;
     const passportId = c.req.param("id");
 
-    if (!(await passportExists(passportId))) {
+    const ownerEmail = await getPassportOwner(passportId);
+    if (!ownerEmail) {
       return c.json(
         { error: "Passport not found", code: "NOT_FOUND" },
         404,
+      );
+    }
+
+    // Verify owner owns this passport
+    if (ownerEmail !== owner.email) {
+      return c.json(
+        { error: "Access denied", code: "FORBIDDEN" },
+        403,
       );
     }
 
@@ -127,13 +147,23 @@ export function createAuditRouter(db: Client): Hono {
   });
 
   // GET /passports/:id/audit — list audit entries with pagination
-  router.get("/passports/:id/audit", async (c) => {
+  router.get("/passports/:id/audit", requireAuth(), async (c) => {
+    const owner = c.get("owner") as OwnerPayload;
     const passportId = c.req.param("id");
 
-    if (!(await passportExists(passportId))) {
+    const ownerEmail = await getPassportOwner(passportId);
+    if (!ownerEmail) {
       return c.json(
         { error: "Passport not found", code: "NOT_FOUND" },
         404,
+      );
+    }
+
+    // Verify owner owns this passport
+    if (ownerEmail !== owner.email) {
+      return c.json(
+        { error: "Access denied", code: "FORBIDDEN" },
+        403,
       );
     }
 

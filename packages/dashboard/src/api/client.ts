@@ -52,9 +52,25 @@ export interface RegisterPassportResponse {
 
 class ApiClient {
   private baseUrl: string;
+  private token: string | null = null;
+  private onUnauthorized?: () => void;
 
   constructor(baseUrl: string = API_BASE_URL) {
     this.baseUrl = baseUrl;
+  }
+
+  /**
+   * Set the authentication token for API requests.
+   */
+  setToken(token: string | null) {
+    this.token = token;
+  }
+
+  /**
+   * Set callback to be called on 401 Unauthorized response.
+   */
+  setOnUnauthorized(callback: () => void) {
+    this.onUnauthorized = callback;
   }
 
   private async fetch<T>(
@@ -66,14 +82,30 @@ class ApiClient {
     const timeoutId = setTimeout(() => controller.abort(), 30000);
 
     try {
+      const headers: Record<string, string> = {
+        "Content-Type": "application/json",
+      };
+
+      // Add Authorization header if token is set
+      if (this.token) {
+        headers["Authorization"] = `Bearer ${this.token}`;
+      }
+
       const response = await fetch(url, {
         ...options,
         signal: controller.signal,
         headers: {
-          "Content-Type": "application/json",
+          ...headers,
           ...options.headers,
         },
       });
+
+      if (response.status === 401) {
+        // Unauthorized - trigger callback
+        if (this.onUnauthorized) {
+          this.onUnauthorized();
+        }
+      }
 
       if (!response.ok) {
         const error = await response.json().catch(() => ({ error: "Unknown error" }));
@@ -149,6 +181,33 @@ class ApiClient {
     const path = `/audit${query ? `?${query}` : ""}`;
 
     return this.fetch<AuditLogResponse>(path);
+  }
+
+  /**
+   * Register a new owner account.
+   */
+  async register(email: string, password: string, name: string): Promise<{ owner_id: string; email: string; token: string }> {
+    return this.fetch<{ owner_id: string; email: string; token: string }>("/auth/register", {
+      method: "POST",
+      body: JSON.stringify({ email, password, name }),
+    });
+  }
+
+  /**
+   * Login as an owner.
+   */
+  async login(email: string, password: string): Promise<{ owner_id: string; email: string; name: string; token: string }> {
+    return this.fetch<{ owner_id: string; email: string; name: string; token: string }>("/auth/login", {
+      method: "POST",
+      body: JSON.stringify({ email, password }),
+    });
+  }
+
+  /**
+   * Get current owner info.
+   */
+  async getMe(): Promise<{ owner_id: string; email: string; name: string }> {
+    return this.fetch<{ owner_id: string; email: string; name: string }>("/auth/me");
   }
 }
 

@@ -1,5 +1,6 @@
-import { NavLink, Outlet, useLocation } from "react-router-dom";
+import { NavLink, Outlet, useLocation, useNavigate } from "react-router-dom";
 import { useState, useEffect } from "react";
+import { useAuth } from "../context/AuthContext.js";
 
 const navigation = [
   { name: "Dashboard", path: "/", icon: LayoutDashboardIcon },
@@ -114,7 +115,14 @@ function SettingsIcon() {
 
 export default function Layout() {
   const location = useLocation();
+  const navigate = useNavigate();
+  const { owner, logout } = useAuth();
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+
+  const handleLogout = () => {
+    logout();
+    navigate("/login");
+  };
 
   // Update page title
   useEffect(() => {
@@ -215,15 +223,34 @@ export default function Layout() {
 
         {/* Footer */}
         <div className="border-t border-gray-800 p-4">
-          <div className="flex items-center gap-3">
+          <div className="mb-3 flex items-center gap-3">
             <div className="flex h-8 w-8 items-center justify-center rounded-full bg-gray-700 text-sm font-medium text-gray-300">
-              O
+              {owner?.name.charAt(0).toUpperCase() || "O"}
             </div>
-            <div>
-              <p className="text-sm font-medium text-gray-300">Owner</p>
-              <p className="text-xs text-gray-500">owner@example.com</p>
+            <div className="flex-1 min-w-0">
+              <p className="text-sm font-medium text-gray-300 truncate">{owner?.name || "Owner"}</p>
+              <p className="text-xs text-gray-500 truncate">{owner?.email || "owner@example.com"}</p>
             </div>
           </div>
+          <button
+            onClick={handleLogout}
+            className="flex w-full items-center justify-center gap-2 rounded-lg bg-gray-800 px-3 py-2 text-sm font-medium text-gray-300 transition-colors hover:bg-gray-700 hover:text-white"
+          >
+            <svg
+              className="h-4 w-4"
+              fill="none"
+              viewBox="0 0 24 24"
+              strokeWidth={1.5}
+              stroke="currentColor"
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                d="M15.75 9V5.25A2.25 2.25 0 0 0 13.5 3h-6a2.25 2.25 0 0 0-2.25 2.25v13.5A2.25 2.25 0 0 0 7.5 21h6a2.25 2.25 0 0 0 2.25-2.25V15M12 9l-3 3m0 0 3 3m-3-3h12.75"
+              />
+            </svg>
+            Logout
+          </button>
         </div>
       </aside>
 

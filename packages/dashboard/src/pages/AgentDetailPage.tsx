@@ -287,12 +287,12 @@ export default function AgentDetailPage() {
       <div className="mb-8 flex items-start justify-between">
         <div className="flex items-center gap-4">
           <div className="flex h-14 w-14 items-center justify-center rounded-xl bg-indigo-100 text-xl font-bold text-indigo-700">
-            {"name" in agent ? agent.name.charAt(0).toUpperCase() : agent.id.charAt(0).toUpperCase()}
+            {agent.name ? agent.name.charAt(0).toUpperCase() : (agent as any).id?.charAt(0).toUpperCase() || "A"}
           </div>
           <div>
             <div className="flex items-center gap-3">
               <h1 className="text-2xl font-bold text-gray-900">
-                {"name" in agent ? agent.name : agent.id}
+                {agent.name || (agent as any).id || "Unknown Agent"}
               </h1>
               <StatusBadge status={agent.status} />
             </div>

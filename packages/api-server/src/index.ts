@@ -10,6 +10,7 @@ import { cors } from "hono/cors";
 import { serve } from "@hono/node-server";
 import type { Client } from "@libsql/client";
 import { initDatabase } from "./db/schema.js";
+import { createAuthRouter } from "./routes/auth.js";
 import { createPassportsRouter } from "./routes/passports.js";
 import { createVerifyRouter } from "./routes/verify.js";
 import { createAuditRouter } from "./routes/audit.js";
@@ -43,7 +44,7 @@ export async function createApp(dbPath: string = DB_PATH): Promise<{ app: Hono; 
   app.use("*", cors({
     origin: allowedOrigins,
     allowMethods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-    allowHeaders: ['Content-Type', 'X-Webhook-Secret', 'X-AgentPass-ID', 'X-AgentPass-Signature', 'X-Request-ID'],
+    allowHeaders: ['Content-Type', 'Authorization', 'X-Webhook-Secret', 'X-AgentPass-ID', 'X-AgentPass-Signature', 'X-Request-ID'],
   }));
 
   // Apply default rate limiting to all routes
@@ -67,6 +68,7 @@ export async function createApp(dbPath: string = DB_PATH): Promise<{ app: Hono; 
   });
 
   // --- Route groups ---
+  const authRouter = createAuthRouter(db);
   const passportsRouter = createPassportsRouter(db);
   const verifyRouter = createVerifyRouter(db);
   const auditRouter = createAuditRouter(db);
@@ -76,6 +78,7 @@ export async function createApp(dbPath: string = DB_PATH): Promise<{ app: Hono; 
   const healthRouter = createHealthRouter(db);
 
   app.route("/", healthRouter);
+  app.route("/auth", authRouter);
   app.route("/passports", passportsRouter);
   app.route("/verify", verifyRouter);
   // Audit routes are nested under /passports/:id/audit

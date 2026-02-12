@@ -12,11 +12,25 @@ import { createApp } from "../index.js";
 describe("Verify routes", () => {
   let app: Hono;
   let db: Client;
+  let authToken: string;
 
   beforeEach(async () => {
     const created = await createApp(":memory:");
     app = created.app;
     db = created.db;
+
+    // Register and login to get auth token
+    const registerRes = await app.request("/auth/register", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        email: "owner@example.com",
+        password: "secure-password-123",
+        name: "Test Owner",
+      }),
+    });
+    const registerData = await registerRes.json();
+    authToken = registerData.token;
   });
 
   afterEach(() => {
@@ -31,10 +45,12 @@ describe("Verify routes", () => {
 
     const res = await app.request("/passports", {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${authToken}`,
+      },
       body: JSON.stringify({
         public_key: keyPair.publicKey,
-        owner_email: "owner@example.com",
         name: "verify-test-agent",
         description: "Agent for verification tests",
       }),
@@ -113,11 +129,14 @@ describe("Verify routes", () => {
     it("returns 403 for a revoked passport", async () => {
       const { passport_id, keyPair } = await setupPassport();
 
-      // Revoke the passport (requires signature)
+      // Revoke the passport (requires signature and auth token)
       const revokeSignature = sign(passport_id, keyPair.privateKey);
       await app.request(`/passports/${passport_id}`, {
         method: "DELETE",
-        headers: { "X-AgentPass-Signature": revokeSignature },
+        headers: {
+          "X-AgentPass-Signature": revokeSignature,
+          Authorization: `Bearer ${authToken}`,
+        },
       });
 
       const challenge = createChallenge();
@@ -181,7 +200,9 @@ describe("Verify routes", () => {
       }
 
       // Check trust_score via GET
-      const res = await app.request(`/passports/${passport_id}`);
+      const res = await app.request(`/passports/${passport_id}`, {
+        headers: { Authorization: `Bearer ${authToken}` },
+      });
       const data = await res.json();
       expect(data.trust_score).toBe(3);
     });

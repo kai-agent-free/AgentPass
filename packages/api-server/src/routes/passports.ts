@@ -12,12 +12,12 @@ import { generatePassportId, verify } from "@agentpass/core";
 import type { Client } from "@libsql/client";
 import { zValidator, getValidatedBody } from "../middleware/validation.js";
 import { rateLimiters } from "../middleware/rate-limiter.js";
+import { requireAuth, type OwnerPayload, type AuthVariables } from "../middleware/auth.js";
 
 // --- Zod schemas for request validation ---
 
 const RegisterPassportSchema = z.object({
   public_key: z.string().min(1, "Public key is required"),
-  owner_email: z.string().email("Invalid email address"),
   name: z
     .string()
     .min(1, "Name is required")
@@ -53,23 +53,24 @@ interface PassportRow {
 /**
  * Create the passports router bound to the given database instance.
  */
-export function createPassportsRouter(db: Client): Hono {
-  const router = new Hono();
+export function createPassportsRouter(db: Client): Hono<{ Variables: AuthVariables }> {
+  const router = new Hono<{ Variables: AuthVariables }>();
 
-  // GET /passports — list all passports
-  router.get("/", async (c) => {
+  // GET /passports — list all passports (filtered by owner)
+  router.get("/", requireAuth(), async (c) => {
+    const owner = c.get("owner") as OwnerPayload;
     const limit = Math.min(Math.max(parseInt(c.req.query("limit") || "50", 10) || 50, 1), 200);
     const offset = Math.max(parseInt(c.req.query("offset") || "0", 10) || 0, 0);
 
     const rowsResult = await db.execute({
-      sql: "SELECT * FROM passports ORDER BY created_at DESC LIMIT ? OFFSET ?",
-      args: [limit, offset],
+      sql: "SELECT * FROM passports WHERE owner_email = ? ORDER BY created_at DESC LIMIT ? OFFSET ?",
+      args: [owner.email, limit, offset],
     });
     const rows = rowsResult.rows as unknown as PassportRow[];
 
     const totalResult = await db.execute({
-      sql: "SELECT COUNT(*) as count FROM passports",
-      args: [],
+      sql: "SELECT COUNT(*) as count FROM passports WHERE owner_email = ?",
+      args: [owner.email],
     });
     const totalRow = totalResult.rows[0] as unknown as { count: number };
 
@@ -95,7 +96,8 @@ export function createPassportsRouter(db: Client): Hono {
   });
 
   // POST /passports — register a new passport
-  router.post("/", rateLimiters.createPassport, zValidator(RegisterPassportSchema), async (c) => {
+  router.post("/", requireAuth(), rateLimiters.createPassport, zValidator(RegisterPassportSchema), async (c) => {
+    const owner = c.get("owner") as OwnerPayload;
     const body = getValidatedBody<RegisterPassportBody>(c);
     const passportId = generatePassportId();
     const now = new Date().toISOString();
@@ -103,14 +105,15 @@ export function createPassportsRouter(db: Client): Hono {
     await db.execute({
       sql: `INSERT INTO passports (id, public_key, owner_email, name, description, trust_score, status, created_at, updated_at)
             VALUES (?, ?, ?, ?, ?, 0, 'active', ?, ?)`,
-      args: [passportId, body.public_key, body.owner_email, body.name, body.description, now, now],
+      args: [passportId, body.public_key, owner.email, body.name, body.description, now, now],
     });
 
     return c.json({ passport_id: passportId, created_at: now }, 201);
   });
 
   // GET /passports/:id — get passport info
-  router.get("/:id", async (c) => {
+  router.get("/:id", requireAuth(), async (c) => {
+    const owner = c.get("owner") as OwnerPayload;
     const id = c.req.param("id");
     const result = await db.execute({
       sql: "SELECT * FROM passports WHERE id = ?",
@@ -122,6 +125,14 @@ export function createPassportsRouter(db: Client): Hono {
       return c.json(
         { error: "Passport not found", code: "NOT_FOUND" },
         404,
+      );
+    }
+
+    // Verify owner owns this passport
+    if (row.owner_email !== owner.email) {
+      return c.json(
+        { error: "Access denied", code: "FORBIDDEN" },
+        403,
       );
     }
 
@@ -139,8 +150,9 @@ export function createPassportsRouter(db: Client): Hono {
     });
   });
 
-  // DELETE /passports/:id — revoke a passport (requires signature)
-  router.delete("/:id", async (c) => {
+  // DELETE /passports/:id — revoke a passport (requires signature and owner auth)
+  router.delete("/:id", requireAuth(), async (c) => {
+    const owner = c.get("owner") as OwnerPayload;
     const id = c.req.param("id");
     const signature = c.req.header("X-AgentPass-Signature");
 
@@ -152,17 +164,25 @@ export function createPassportsRouter(db: Client): Hono {
       );
     }
 
-    // Look up passport to get public key
+    // Look up passport to get public key and owner
     const result = await db.execute({
-      sql: "SELECT id, public_key, status FROM passports WHERE id = ?",
+      sql: "SELECT id, public_key, owner_email, status FROM passports WHERE id = ?",
       args: [id],
     });
-    const row = result.rows[0] as unknown as Pick<PassportRow, "id" | "public_key" | "status"> | undefined;
+    const row = result.rows[0] as unknown as Pick<PassportRow, "id" | "public_key" | "owner_email" | "status"> | undefined;
 
     if (!row) {
       return c.json(
         { error: "Passport not found", code: "NOT_FOUND" },
         404,
+      );
+    }
+
+    // Verify owner owns this passport
+    if (row.owner_email !== owner.email) {
+      return c.json(
+        { error: "Access denied", code: "FORBIDDEN" },
+        403,
       );
     }
 

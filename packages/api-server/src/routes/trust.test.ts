@@ -6,11 +6,25 @@ import { createApp } from "../index.js";
 describe("Trust routes", () => {
   let app: Hono;
   let db: Client;
+  let authToken: string;
 
   beforeEach(async () => {
     const created = await createApp(":memory:");
     app = created.app;
     db = created.db;
+
+    // Register and login to get auth token
+    const registerRes = await app.request("/auth/register", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        email: "owner@example.com",
+        password: "secure-password-123",
+        name: "Test Owner",
+      }),
+    });
+    const registerData = await registerRes.json();
+    authToken = registerData.token;
   });
 
   afterEach(() => {
@@ -21,14 +35,16 @@ describe("Trust routes", () => {
   async function registerPassport(overrides: Record<string, unknown> = {}) {
     const body = {
       public_key: "MCowBQYDK2VwAyEATestKeyBase64UrlEncodedHere12345",
-      owner_email: "owner@example.com",
       name: "trust-test-agent",
       description: "Agent for trust tests",
       ...overrides,
     };
     const res = await app.request("/passports", {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${authToken}`,
+      },
       body: JSON.stringify(body),
     });
     const data = await res.json();
@@ -41,7 +57,9 @@ describe("Trust routes", () => {
     it("returns trust details for an existing passport", async () => {
       const passportId = await registerPassport();
 
-      const res = await app.request(`/passports/${passportId}/trust`);
+      const res = await app.request(`/passports/${passportId}/trust`, {
+        headers: { Authorization: `Bearer ${authToken}` },
+      });
       expect(res.status).toBe(200);
 
       const data = await res.json();
@@ -56,7 +74,9 @@ describe("Trust routes", () => {
     });
 
     it("returns 404 for a non-existent passport", async () => {
-      const res = await app.request("/passports/ap_000000000000/trust");
+      const res = await app.request("/passports/ap_000000000000/trust", {
+        headers: { Authorization: `Bearer ${authToken}` },
+      });
       expect(res.status).toBe(404);
 
       const data = await res.json();
@@ -72,7 +92,9 @@ describe("Trust routes", () => {
         args: [JSON.stringify({ owner_verified: true }), passportId],
       });
 
-      const res = await app.request(`/passports/${passportId}/trust`);
+      const res = await app.request(`/passports/${passportId}/trust`, {
+        headers: { Authorization: `Bearer ${authToken}` },
+      });
       const data = await res.json();
 
       expect(data.factors.owner_verified).toBe(true);
@@ -88,7 +110,9 @@ describe("Trust routes", () => {
         args: [JSON.stringify({ owner_verified: true, payment_method: true }), passportId],
       });
 
-      const res = await app.request(`/passports/${passportId}/trust`);
+      const res = await app.request(`/passports/${passportId}/trust`, {
+        headers: { Authorization: `Bearer ${authToken}` },
+      });
       const data = await res.json();
 
       expect(data.factors.owner_verified).toBe(true);
@@ -106,7 +130,10 @@ describe("Trust routes", () => {
 
       const res = await app.request(`/passports/${passportId}/report-abuse`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${authToken}`,
+        },
         body: JSON.stringify({ reason: "Spamming service endpoints" }),
       });
 
@@ -130,14 +157,20 @@ describe("Trust routes", () => {
       // First report
       await app.request(`/passports/${passportId}/report-abuse`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${authToken}`,
+        },
         body: JSON.stringify({ reason: "First offense" }),
       });
 
       // Second report
       const res = await app.request(`/passports/${passportId}/report-abuse`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${authToken}`,
+        },
         body: JSON.stringify({ reason: "Second offense" }),
       });
 
@@ -152,7 +185,10 @@ describe("Trust routes", () => {
 
       await app.request(`/passports/${passportId}/report-abuse`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${authToken}`,
+        },
         body: JSON.stringify({ reason: "Automated credential stuffing" }),
       });
 
@@ -178,7 +214,10 @@ describe("Trust routes", () => {
 
       await app.request(`/passports/${passportId}/report-abuse`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${authToken}`,
+        },
         body: JSON.stringify({ reason: "Abuse" }),
       });
 
@@ -194,7 +233,10 @@ describe("Trust routes", () => {
     it("returns 404 for a non-existent passport", async () => {
       const res = await app.request("/passports/ap_000000000000/report-abuse", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${authToken}`,
+        },
         body: JSON.stringify({ reason: "Some reason" }),
       });
 
@@ -209,7 +251,10 @@ describe("Trust routes", () => {
 
       const res = await app.request(`/passports/${passportId}/report-abuse`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${authToken}`,
+        },
         body: JSON.stringify({}),
       });
 
@@ -230,7 +275,10 @@ describe("Trust routes", () => {
 
       const res = await app.request(`/passports/${passportId}/report-abuse`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${authToken}`,
+        },
         body: JSON.stringify({ reason: "Minor issue" }),
       });
 
