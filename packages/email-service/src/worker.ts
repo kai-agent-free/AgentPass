@@ -5,6 +5,9 @@
  * Stores emails in Durable Objects and notifies API server via webhook.
  */
 
+import PostalMime from 'postal-mime';
+import { DurableObject } from 'cloudflare:workers';
+
 // Environment bindings
 export interface Env {
   EMAIL_STORAGE: DurableObjectNamespace;
@@ -24,6 +27,7 @@ export default {
       await storage.storeEmail(email);
 
       // Notify API server via webhook (fire and forget)
+      console.log(`Notifying API server: ${env.API_SERVER_URL}, secret: ${env.WEBHOOK_SECRET ? 'SET' : 'NOT SET'}`);
       ctx.waitUntil(
         notifyApiServer(email, env.API_SERVER_URL, env.WEBHOOK_SECRET)
       );
@@ -106,31 +110,29 @@ export default {
 };
 
 // Durable Object for email storage
-export class EmailStorage {
-  private state: DurableObjectState;
-
+export class EmailStorage extends DurableObject {
   constructor(state: DurableObjectState, env: Env) {
-    this.state = state;
+    super(state, env);
   }
 
   async storeEmail(email: StoredEmail): Promise<void> {
     const key = `email:${email.id}`;
-    await this.state.storage.put(key, email);
+    await this.ctx.storage.put(key, email);
 
     // Also maintain a list of email IDs for this mailbox
     const listKey = 'email_ids';
-    const ids = (await this.state.storage.get<string[]>(listKey)) || [];
+    const ids = (await this.ctx.storage.get<string[]>(listKey)) || [];
     ids.push(email.id);
-    await this.state.storage.put(listKey, ids);
+    await this.ctx.storage.put(listKey, ids);
   }
 
   async listEmails(): Promise<StoredEmail[]> {
     const listKey = 'email_ids';
-    const ids = (await this.state.storage.get<string[]>(listKey)) || [];
+    const ids = (await this.ctx.storage.get<string[]>(listKey)) || [];
 
     const emails: StoredEmail[] = [];
     for (const id of ids) {
-      const email = await this.state.storage.get<StoredEmail>(`email:${id}`);
+      const email = await this.ctx.storage.get<StoredEmail>(`email:${id}`);
       if (email) {
         emails.push(email);
       }
@@ -143,18 +145,18 @@ export class EmailStorage {
   }
 
   async getEmail(emailId: string): Promise<StoredEmail | null> {
-    const email = await this.state.storage.get<StoredEmail>(`email:${emailId}`);
+    const email = await this.ctx.storage.get<StoredEmail>(`email:${emailId}`);
     return email || null;
   }
 
   async deleteEmail(emailId: string): Promise<void> {
-    await this.state.storage.delete(`email:${emailId}`);
+    await this.ctx.storage.delete(`email:${emailId}`);
 
     // Remove from list
     const listKey = 'email_ids';
-    const ids = (await this.state.storage.get<string[]>(listKey)) || [];
+    const ids = (await this.ctx.storage.get<string[]>(listKey)) || [];
     const filtered = ids.filter((id: string) => id !== emailId);
-    await this.state.storage.put(listKey, filtered);
+    await this.ctx.storage.put(listKey, filtered);
   }
 }
 
@@ -179,21 +181,20 @@ interface TestEmailRequest {
 }
 
 // Helpers
-async function parseIncomingEmail(message: EmailMessage): Promise<StoredEmail> {
-  const body = await message.text();
-
-  // Extract plain text and HTML from MIME if present
-  const { plain, html } = extractEmailContent(body);
+async function parseIncomingEmail(message: any): Promise<StoredEmail> {
+  const parser = new PostalMime();
+  const arrayBuffer = await new Response(message.raw).arrayBuffer();
+  const email = await parser.parse(arrayBuffer);
 
   return {
     id: crypto.randomUUID(),
     to: message.to.toLowerCase(),
     from: message.from.toLowerCase(),
-    subject: message.headers.get('subject') || '(no subject)',
-    body: plain,
-    html: html,
+    subject: email.subject || '(no subject)',
+    body: email.text || '',
+    html: email.html,
     received_at: new Date().toISOString(),
-    headers: Object.fromEntries(message.headers.entries()),
+    headers: email.headers ? Object.fromEntries(Object.entries(email.headers)) : {},
   };
 }
 
@@ -232,6 +233,7 @@ async function notifyApiServer(
   secret: string
 ): Promise<void> {
   try {
+    console.log(`Sending webhook to: ${apiServerUrl}/webhook/email-received`);
     const response = await fetch(`${apiServerUrl}/webhook/email-received`, {
       method: 'POST',
       headers: {
@@ -249,6 +251,8 @@ async function notifyApiServer(
 
     if (!response.ok) {
       console.error(`API server webhook failed: ${response.status} ${response.statusText}`);
+    } else {
+      console.log(`Webhook sent successfully for email ${email.id}`);
     }
   } catch (error) {
     console.error('Failed to notify API server:', error);
