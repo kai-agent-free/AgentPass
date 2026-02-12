@@ -4,7 +4,7 @@ services:
   api-server:
     build:
       context: .
-      dockerfile: Dockerfile
+      dockerfile: packages/api-server/Dockerfile
     container_name: agentpass-api
     ports:
       - "3846:3846"
@@ -13,6 +13,8 @@ services:
       - AGENTPASS_PORT=3846
       - AGENTPASS_DB_PATH=/app/data/agentpass.db
       - WEBHOOK_SECRET=${WEBHOOK_SECRET}
+      - ALLOWED_ORIGINS=https://dashboard.agentpass.space,https://agentpass.space
+      - TRUST_PROXY=true
     volumes:
       - agentpass-data:/app/data
     restart: unless-stopped
@@ -23,6 +25,40 @@ services:
       - "traefik.http.routers.agentpass-api.tls=true"
       - "traefik.http.routers.agentpass-api.tls.certresolver=letsencrypt"
       - "traefik.http.services.agentpass-api.loadbalancer.server.port=3846"
+
+  dashboard:
+    build:
+      context: .
+      dockerfile: packages/dashboard/Dockerfile
+      args:
+        VITE_API_URL: https://api.agentpass.space
+    container_name: agentpass-dashboard
+    ports:
+      - "3847:80"
+    restart: unless-stopped
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.agentpass-dashboard.rule=Host(`dashboard.agentpass.space`)"
+      - "traefik.http.routers.agentpass-dashboard.entrypoints=websecure"
+      - "traefik.http.routers.agentpass-dashboard.tls=true"
+      - "traefik.http.routers.agentpass-dashboard.tls.certresolver=letsencrypt"
+      - "traefik.http.services.agentpass-dashboard.loadbalancer.server.port=80"
+
+  landing:
+    build:
+      context: .
+      dockerfile: packages/landing/Dockerfile
+    container_name: agentpass-landing
+    ports:
+      - "3849:80"
+    restart: unless-stopped
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.agentpass-landing.rule=Host(`agentpass.space`)"
+      - "traefik.http.routers.agentpass-landing.entrypoints=websecure"
+      - "traefik.http.routers.agentpass-landing.tls=true"
+      - "traefik.http.routers.agentpass-landing.tls.certresolver=letsencrypt"
+      - "traefik.http.services.agentpass-landing.loadbalancer.server.port=80"
 
 volumes:
   agentpass-data:
