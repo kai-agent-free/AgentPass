@@ -19,6 +19,7 @@ import type { SmsServiceInterface } from "./services/sms-service-interface.js";
 import { TelegramBotService } from "./services/telegram-bot.js";
 import { WebhookService } from "./services/webhook-service.js";
 import { ApprovalService } from "./services/approval-service.js";
+import { SessionService } from "./services/session-service.js";
 import { registerAllTools } from "./tools/index.js";
 import { ApiClient } from "./services/api-client.js";
 import { CredentialVault } from "@agentpass/core";
@@ -117,6 +118,7 @@ async function createServer(): Promise<McpServer> {
 
   const authService = new AuthService(identityService, credentialService);
   const emailService = new EmailServiceAdapter();
+  const sessionService = new SessionService();
 
   // Initialize SMS service: use Twilio if credentials are available, otherwise mock
   const smsService = createSmsService();
@@ -130,6 +132,7 @@ async function createServer(): Promise<McpServer> {
     telegramBot,
     webhookService,
     approvalService,
+    sessionService,
   });
 
   // Graceful shutdown handler for Telegram bot and SMS service

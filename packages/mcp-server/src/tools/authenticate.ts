@@ -73,13 +73,71 @@ export function registerAuthTools(
       },
     },
     async ({ passport_id, service_url }) => {
-      const status = authService.checkAuthStatus(passport_id, service_url);
+      const status = await authService.checkAuthStatus(
+        passport_id,
+        service_url,
+      );
 
       return {
         content: [
           {
             type: "text" as const,
             text: JSON.stringify(status, null, 2),
+          },
+        ],
+      };
+    },
+  );
+
+  server.registerTool(
+    "logout",
+    {
+      title: "Logout",
+      description:
+        "Logout an agent from a service by deleting its stored credentials. " +
+        "After logout, the agent will need to re-authenticate to access the service.",
+      inputSchema: {
+        passport_id: z
+          .string()
+          .regex(
+            /^ap_[a-z0-9]{12}$/,
+            "Invalid passport ID format (expected ap_xxxxxxxxxxxx)",
+          )
+          .describe("The agent's passport ID"),
+        service: z
+          .string()
+          .min(1)
+          .describe("The service to logout from (domain name)"),
+      },
+    },
+    async ({ passport_id, service }) => {
+      const result = await authService.logout(passport_id, service);
+
+      if (!result.success) {
+        return {
+          isError: true,
+          content: [
+            {
+              type: "text" as const,
+              text: `No credentials found for ${passport_id} on ${service}`,
+            },
+          ],
+        };
+      }
+
+      return {
+        content: [
+          {
+            type: "text" as const,
+            text: JSON.stringify(
+              {
+                passport_id,
+                service,
+                logged_out: true,
+              },
+              null,
+              2,
+            ),
           },
         ],
       };

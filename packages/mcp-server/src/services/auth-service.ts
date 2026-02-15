@@ -107,6 +107,20 @@ export class AuthService {
     };
   }
 
+  /**
+   * Logout an agent from a service by deleting its stored credentials.
+   */
+  async logout(
+    passportId: string,
+    service: string,
+  ): Promise<{ success: boolean }> {
+    const deleted = await this.credentialService.deleteCredential(
+      passportId,
+      service,
+    );
+    return { success: deleted };
+  }
+
   private extractDomain(url: string): string {
     try {
       const parsed = new URL(

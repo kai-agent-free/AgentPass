@@ -1,7 +1,7 @@
 /**
  * Credential management MCP tools.
  *
- * Tools: store_credential, get_credential, list_credentials
+ * Tools: store_credential, get_credential, list_credentials, delete_credential
  */
 
 import { z } from "zod";
@@ -139,6 +139,61 @@ export function registerCredentialTools(
           {
             type: "text" as const,
             text: JSON.stringify(credentials, null, 2),
+          },
+        ],
+      };
+    },
+  );
+
+  server.registerTool(
+    "delete_credential",
+    {
+      title: "Delete Credential",
+      description:
+        "Delete a stored credential for a specific service from the agent's local vault. This action is irreversible.",
+      inputSchema: {
+        passport_id: z
+          .string()
+          .regex(
+            /^ap_[a-z0-9]{12}$/,
+            "Invalid passport ID format (expected ap_xxxxxxxxxxxx)",
+          )
+          .describe("The passport ID that owns this credential"),
+        service: z
+          .string()
+          .min(1)
+          .max(128)
+          .describe("Service name to delete the credential for"),
+      },
+    },
+    async ({ passport_id, service }) => {
+      const deleted = await credentialService.deleteCredential(passport_id, service);
+
+      if (!deleted) {
+        return {
+          isError: true,
+          content: [
+            {
+              type: "text" as const,
+              text: `Credential not found for service '${service}' under passport ${passport_id}`,
+            },
+          ],
+        };
+      }
+
+      return {
+        content: [
+          {
+            type: "text" as const,
+            text: JSON.stringify(
+              {
+                passport_id,
+                service,
+                deleted: true,
+              },
+              null,
+              2,
+            ),
           },
         ],
       };

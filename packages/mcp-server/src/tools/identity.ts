@@ -1,7 +1,7 @@
 /**
  * Identity management MCP tools.
  *
- * Tools: create_identity, list_identities, get_identity
+ * Tools: create_identity, list_identities, get_identity, delete_identity, revoke_identity
  */
 
 import { z } from "zod";
@@ -140,6 +140,104 @@ export function registerIdentityTools(
           {
             type: "text" as const,
             text: JSON.stringify(passport, null, 2),
+          },
+        ],
+      };
+    },
+  );
+
+  server.registerTool(
+    "delete_identity",
+    {
+      title: "Delete Identity",
+      description:
+        "Permanently delete an agent identity from the local vault. This action is irreversible — the passport and its associated key pair will be removed.",
+      inputSchema: {
+        passport_id: z
+          .string()
+          .regex(
+            /^ap_[a-z0-9]{12}$/,
+            "Invalid passport ID format (expected ap_xxxxxxxxxxxx)",
+          )
+          .describe("The passport ID to delete"),
+      },
+    },
+    async ({ passport_id }) => {
+      const deleted = await identityService.deleteIdentity(passport_id);
+
+      if (!deleted) {
+        return {
+          isError: true,
+          content: [
+            {
+              type: "text" as const,
+              text: `Identity not found: ${passport_id}`,
+            },
+          ],
+        };
+      }
+
+      return {
+        content: [
+          {
+            type: "text" as const,
+            text: JSON.stringify(
+              {
+                passport_id,
+                deleted: true,
+              },
+              null,
+              2,
+            ),
+          },
+        ],
+      };
+    },
+  );
+
+  server.registerTool(
+    "revoke_identity",
+    {
+      title: "Revoke Identity",
+      description:
+        "Revoke an agent identity. The passport is marked as revoked and can no longer be used for authentication, but is kept in the vault for audit purposes.",
+      inputSchema: {
+        passport_id: z
+          .string()
+          .regex(
+            /^ap_[a-z0-9]{12}$/,
+            "Invalid passport ID format (expected ap_xxxxxxxxxxxx)",
+          )
+          .describe("The passport ID to revoke"),
+      },
+    },
+    async ({ passport_id }) => {
+      const revoked = await identityService.revokeIdentity(passport_id);
+
+      if (!revoked) {
+        return {
+          isError: true,
+          content: [
+            {
+              type: "text" as const,
+              text: `Identity not found: ${passport_id}`,
+            },
+          ],
+        };
+      }
+
+      return {
+        content: [
+          {
+            type: "text" as const,
+            text: JSON.stringify(
+              {
+                passport_id,
+                revoked: true,
+              },
+              null,
+              2,
+            ),
           },
         ],
       };

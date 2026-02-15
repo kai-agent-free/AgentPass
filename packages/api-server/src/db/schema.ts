@@ -129,5 +129,21 @@ export async function initDatabase(connectionString?: string): Promise<Sql> {
   await sql`CREATE INDEX IF NOT EXISTS idx_api_keys_owner_id ON api_keys(owner_id)`;
   await sql`CREATE INDEX IF NOT EXISTS idx_api_keys_key_prefix ON api_keys(key_prefix)`;
 
+  // Create approvals table
+  await sql`
+    CREATE TABLE IF NOT EXISTS approvals (
+      id           TEXT PRIMARY KEY,
+      passport_id  TEXT NOT NULL REFERENCES passports(id),
+      action       TEXT NOT NULL,
+      service      TEXT NOT NULL DEFAULT '',
+      details      TEXT NOT NULL DEFAULT '',
+      status       TEXT NOT NULL DEFAULT 'pending',
+      responded_at TIMESTAMPTZ,
+      created_at   TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    )
+  `;
+
+  await sql`CREATE INDEX IF NOT EXISTS idx_approvals_passport_id ON approvals(passport_id)`;
+
   return sql;
 }

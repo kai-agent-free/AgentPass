@@ -55,6 +55,17 @@ export interface CreateApiKeyResponse {
   created_at: string;
 }
 
+export interface Approval {
+  id: string;
+  passport_id: string;
+  action: string;
+  service: string;
+  details: string;
+  status: "pending" | "approved" | "denied";
+  responded_at: string | null;
+  created_at: string;
+}
+
 export interface RegisterPassportRequest {
   public_key: string;
   owner_email: string;
@@ -252,6 +263,30 @@ class ApiClient {
   async revokeApiKey(id: string): Promise<{ revoked: boolean }> {
     return this.fetch<{ revoked: boolean }>(`/api-keys/${id}`, {
       method: "DELETE",
+    });
+  }
+
+  /**
+   * List approval requests for the owner's passports.
+   */
+  async listApprovals(status?: string): Promise<Approval[]> {
+    const params = new URLSearchParams();
+    if (status) params.set("status", status);
+
+    const query = params.toString();
+    const path = `/approvals${query ? `?${query}` : ""}`;
+
+    const response = await this.fetch<{ approvals: Approval[] }>(path);
+    return response.approvals;
+  }
+
+  /**
+   * Respond to an approval request (approve or deny).
+   */
+  async respondToApproval(id: string, approved: boolean): Promise<{ status: string }> {
+    return this.fetch<{ status: string }>(`/approvals/${id}/respond`, {
+      method: "POST",
+      body: JSON.stringify({ approved }),
     });
   }
 }

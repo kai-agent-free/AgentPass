@@ -16,6 +16,7 @@ import { createVerifyRouter } from "./routes/verify.js";
 import { createAuditRouter, createAuditListRouter } from "./routes/audit.js";
 import { createTrustRouter } from "./routes/trust.js";
 import { createApiKeysRouter } from "./routes/api-keys.js";
+import { createApprovalsRouter } from "./routes/approvals.js";
 import { createWebhookRouter } from "./routes/webhooks.js";
 import { createTelegramRouter } from "./routes/telegram.js";
 import { createHealthRouter } from "./middleware/health.js";
@@ -76,6 +77,7 @@ export async function createApp(connectionString: string = DATABASE_URL): Promis
   const auditListRouter = createAuditListRouter(db);
   const trustRouter = createTrustRouter(db);
   const apiKeysRouter = createApiKeysRouter(db);
+  const approvalsRouter = createApprovalsRouter(db);
   const webhookRouter = createWebhookRouter(db);
   const telegramRouter = createTelegramRouter();
   const healthRouter = createHealthRouter(db);
@@ -91,6 +93,8 @@ export async function createApp(connectionString: string = DATABASE_URL): Promis
   app.route("/passports", trustRouter);
   // API key management (JWT-only auth)
   app.route("/api-keys", apiKeysRouter);
+  // Approval request management
+  app.route("/approvals", approvalsRouter);
   // Webhook routes for external services (email worker, etc.)
   app.route("/webhook", webhookRouter);
   // Telegram routes for bot webhooks and account linking
