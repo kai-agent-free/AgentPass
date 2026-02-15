@@ -15,6 +15,7 @@ import type { WebhookService } from "../services/webhook-service.js";
 import type { ApprovalService } from "../services/approval-service.js";
 import type { SessionService } from "../services/session-service.js";
 import type { CaptchaService } from "../services/captcha-service.js";
+import type { BrowserSessionService } from "../services/browser-session-service.js";
 import { registerIdentityTools } from "./identity.js";
 import { registerCredentialTools } from "./credentials.js";
 import { registerAuthTools } from "./authenticate.js";
@@ -43,6 +44,7 @@ export function registerAllTools(
     approvalService?: ApprovalService;
     sessionService: SessionService;
     captchaService?: CaptchaService;
+    browserSessionService?: BrowserSessionService;
   },
 ): void {
   registerIdentityTools(server, services.identityService);
@@ -55,6 +57,6 @@ export function registerAllTools(
   }
   registerSessionTools(server, services.sessionService);
   if (services.captchaService) {
-    registerCaptchaTools(server, services.captchaService);
+    registerCaptchaTools(server, services.captchaService, services.browserSessionService);
   }
 }

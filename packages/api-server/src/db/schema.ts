@@ -162,5 +162,35 @@ export async function initDatabase(connectionString?: string): Promise<Sql> {
   await sql`CREATE INDEX IF NOT EXISTS idx_escalations_passport_id ON escalations(passport_id)`;
   await sql`CREATE INDEX IF NOT EXISTS idx_escalations_status ON escalations(status)`;
 
+  // Create browser_sessions table (live CAPTCHA viewing)
+  await sql`
+    CREATE TABLE IF NOT EXISTS browser_sessions (
+      id            TEXT PRIMARY KEY,
+      escalation_id TEXT NOT NULL REFERENCES escalations(id),
+      screenshot    TEXT,
+      page_url      TEXT NOT NULL DEFAULT '',
+      viewport_w    INTEGER NOT NULL DEFAULT 1280,
+      viewport_h    INTEGER NOT NULL DEFAULT 720,
+      updated_at    TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      closed_at     TIMESTAMPTZ
+    )
+  `;
+
+  await sql`CREATE INDEX IF NOT EXISTS idx_browser_sessions_escalation_id ON browser_sessions(escalation_id)`;
+
+  // Create browser_commands table (remote input from dashboard)
+  await sql`
+    CREATE TABLE IF NOT EXISTS browser_commands (
+      id         TEXT PRIMARY KEY,
+      session_id TEXT NOT NULL REFERENCES browser_sessions(id),
+      type       TEXT NOT NULL,
+      payload    JSONB NOT NULL,
+      status     TEXT NOT NULL DEFAULT 'pending',
+      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    )
+  `;
+
+  await sql`CREATE INDEX IF NOT EXISTS idx_browser_commands_session_id ON browser_commands(session_id, status)`;
+
   return sql;
 }

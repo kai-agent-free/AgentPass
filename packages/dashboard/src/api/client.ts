@@ -77,6 +77,25 @@ export interface Escalation {
   resolved_at: string | null;
 }
 
+export interface BrowserSession {
+  id: string;
+  escalation_id: string;
+  screenshot: string | null;
+  page_url: string;
+  viewport_w: number;
+  viewport_h: number;
+  updated_at: string;
+  closed_at: string | null;
+}
+
+export interface BrowserCommand {
+  id: string;
+  type: string;
+  payload: Record<string, unknown>;
+  status: string;
+  created_at: string;
+}
+
 export interface RegisterPassportRequest {
   public_key: string;
   owner_email: string;
@@ -326,6 +345,50 @@ class ApiClient {
     const query = params.toString();
     const response = await this.fetch<{ escalations: Escalation[] }>(`/escalations${query ? `?${query}` : ""}`);
     return response.escalations;
+  }
+
+  /**
+   * Get a browser session by ID (includes latest screenshot).
+   */
+  async getBrowserSession(id: string): Promise<BrowserSession> {
+    return this.fetch<BrowserSession>(`/browser-sessions/${id}`);
+  }
+
+  /**
+   * Send a command to a browser session (click, type, etc.).
+   */
+  async sendBrowserCommand(
+    sessionId: string,
+    type: string,
+    payload: Record<string, unknown>,
+  ): Promise<{ command_id: string; status: string }> {
+    return this.fetch<{ command_id: string; status: string }>(
+      `/browser-sessions/${sessionId}/command`,
+      {
+        method: "POST",
+        body: JSON.stringify({ type, payload }),
+      },
+    );
+  }
+
+  /**
+   * Close a browser session.
+   */
+  async closeBrowserSession(id: string): Promise<{ closed: boolean; closed_at: string }> {
+    return this.fetch<{ closed: boolean; closed_at: string }>(
+      `/browser-sessions/${id}/close`,
+      { method: "POST" },
+    );
+  }
+
+  /**
+   * List browser sessions for an escalation.
+   */
+  async listBrowserSessions(escalationId: string): Promise<BrowserSession[]> {
+    const response = await this.fetch<{ sessions: BrowserSession[] }>(
+      `/browser-sessions?escalation_id=${encodeURIComponent(escalationId)}`,
+    );
+    return response.sessions;
   }
 }
 

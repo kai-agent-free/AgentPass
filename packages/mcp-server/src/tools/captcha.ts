@@ -7,6 +7,7 @@
 import { z } from "zod";
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import type { CaptchaService } from "../services/captcha-service.js";
+import type { BrowserSessionService } from "../services/browser-session-service.js";
 
 /**
  * Register all CAPTCHA escalation tools on the given MCP server.
@@ -14,6 +15,7 @@ import type { CaptchaService } from "../services/captcha-service.js";
 export function registerCaptchaTools(
   server: McpServer,
   captchaService: CaptchaService,
+  browserSessionService?: BrowserSessionService,
 ): void {
   server.registerTool(
     "escalate_captcha",
@@ -140,6 +142,40 @@ export function registerCaptchaTools(
           ],
         };
       }
+    },
+  );
+
+  server.registerTool(
+    "get_browser_session_status",
+    {
+      title: "Get Browser Session Status",
+      description:
+        "Check if a live browser session is active for a CAPTCHA escalation. " +
+        "When active, the owner can interact with the browser through the Dashboard.",
+      inputSchema: {
+        session_id: z
+          .string()
+          .min(1)
+          .describe("The browser session ID"),
+      },
+    },
+    async ({ session_id }) => {
+      const active = browserSessionService?.isSessionActive(session_id) ?? false;
+      return {
+        content: [
+          {
+            type: "text" as const,
+            text: JSON.stringify(
+              {
+                session_id,
+                active,
+              },
+              null,
+              2,
+            ),
+          },
+        ],
+      };
     },
   );
 }

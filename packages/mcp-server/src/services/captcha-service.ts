@@ -19,6 +19,7 @@
 import crypto from "node:crypto";
 import type { WebhookService } from "./webhook-service.js";
 import type { ApiClient } from "./api-client.js";
+import type { BrowserSessionService } from "./browser-session-service.js";
 
 export interface EscalationRecord {
   escalation_id: string;
@@ -44,6 +45,7 @@ export interface ResolutionResult {
 export class CaptchaService {
   private readonly escalations = new Map<string, EscalationRecord>();
   private readonly timeoutMs = 300_000; // 5 minutes
+  private browserSessionService?: BrowserSessionService;
 
   constructor(
     private readonly webhookService: WebhookService,
@@ -206,5 +208,19 @@ export class CaptchaService {
    */
   getTimeout(): number {
     return this.timeoutMs;
+  }
+
+  /**
+   * Set the browser session service for live CAPTCHA viewing.
+   */
+  setBrowserSessionService(service: BrowserSessionService): void {
+    this.browserSessionService = service;
+  }
+
+  /**
+   * Get the browser session service.
+   */
+  getBrowserSessionService(): BrowserSessionService | undefined {
+    return this.browserSessionService;
   }
 }

@@ -48,6 +48,27 @@ export interface EscalationStatus {
   resolved_at: string | null;
 }
 
+export interface CreateBrowserSessionParams {
+  escalation_id: string;
+  page_url?: string;
+  viewport_w?: number;
+  viewport_h?: number;
+}
+
+export interface CreateBrowserSessionResult {
+  session_id: string;
+  escalation_id: string;
+  created_at: string;
+}
+
+export interface BrowserCommand {
+  id: string;
+  type: string;
+  payload: Record<string, unknown>;
+  status: string;
+  created_at: string;
+}
+
 /** Error thrown when the API returns an unexpected response. */
 export class ApiClientError extends Error {
   readonly statusCode: number;
@@ -182,6 +203,102 @@ export class ApiClient {
 
     const data = (await response.json()) as EscalationStatus;
     return data;
+  }
+
+  /**
+   * Create a browser session for live CAPTCHA viewing.
+   */
+  async createBrowserSession(
+    params: CreateBrowserSessionParams,
+  ): Promise<CreateBrowserSessionResult> {
+    const url = `${this.apiUrl}/browser-sessions`;
+    const body = JSON.stringify(params);
+
+    const response = await this.requestWithRetry(url, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${this.apiKey}`,
+      },
+      body,
+    });
+
+    return (await response.json()) as CreateBrowserSessionResult;
+  }
+
+  /**
+   * Push a screenshot to the browser session.
+   */
+  async updateBrowserScreenshot(
+    sessionId: string,
+    screenshot: string,
+    pageUrl?: string,
+  ): Promise<void> {
+    const url = `${this.apiUrl}/browser-sessions/${encodeURIComponent(sessionId)}/screenshot`;
+    const body = JSON.stringify({ screenshot, page_url: pageUrl });
+
+    await this.requestWithRetry(url, {
+      method: "PUT",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${this.apiKey}`,
+      },
+      body,
+    });
+  }
+
+  /**
+   * Get pending commands for a browser session.
+   */
+  async getBrowserCommands(
+    sessionId: string,
+    status: string = "pending",
+  ): Promise<BrowserCommand[]> {
+    const url = `${this.apiUrl}/browser-sessions/${encodeURIComponent(sessionId)}/commands?status=${encodeURIComponent(status)}`;
+
+    const response = await this.requestWithRetry(url, {
+      method: "GET",
+      headers: {
+        Authorization: `Bearer ${this.apiKey}`,
+      },
+    });
+
+    const data = (await response.json()) as { commands: BrowserCommand[] };
+    return data.commands;
+  }
+
+  /**
+   * Mark a browser command as executed or failed.
+   */
+  async updateBrowserCommandStatus(
+    sessionId: string,
+    commandId: string,
+    status: "executed" | "failed",
+  ): Promise<void> {
+    const url = `${this.apiUrl}/browser-sessions/${encodeURIComponent(sessionId)}/commands/${encodeURIComponent(commandId)}`;
+
+    await this.requestWithRetry(url, {
+      method: "PATCH",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${this.apiKey}`,
+      },
+      body: JSON.stringify({ status }),
+    });
+  }
+
+  /**
+   * Close a browser session.
+   */
+  async closeBrowserSession(sessionId: string): Promise<void> {
+    const url = `${this.apiUrl}/browser-sessions/${encodeURIComponent(sessionId)}/close`;
+
+    await this.requestWithRetry(url, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${this.apiKey}`,
+      },
+    });
   }
 
   /**

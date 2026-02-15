@@ -1,7 +1,8 @@
 import { useParams, Link } from "react-router-dom";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { apiClient, type Escalation } from "../api/client.js";
 import { useApi } from "../hooks/useApi.js";
+import LiveBrowserViewer from "../components/LiveBrowserViewer.js";
 
 type EscalationStatus = "pending" | "resolved" | "timed_out";
 
@@ -54,6 +55,33 @@ export default function SolveCaptchaPage() {
     [id],
   );
 
+  const [browserSessionId, setBrowserSessionId] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!escalation?.id || escalation.status !== "pending") return;
+
+    let mounted = true;
+
+    const checkBrowserSession = async () => {
+      try {
+        const sessions = await apiClient.listBrowserSessions(escalation.id);
+        if (!mounted) return;
+        const activeSession = sessions.find((s) => !s.closed_at);
+        if (activeSession) {
+          setBrowserSessionId(activeSession.id);
+        }
+      } catch {
+        // No browser session available -- static view is fine
+      }
+    };
+
+    checkBrowserSession();
+
+    return () => {
+      mounted = false;
+    };
+  }, [escalation?.id, escalation?.status]);
+
   const handleResolve = async () => {
     if (!id) return;
 
@@ -62,6 +90,16 @@ export default function SolveCaptchaPage() {
 
     try {
       const result = await apiClient.resolveEscalation(id);
+
+      // Close browser session if active
+      if (browserSessionId) {
+        try {
+          await apiClient.closeBrowserSession(browserSessionId);
+        } catch {
+          // Non-critical
+        }
+      }
+
       setResolved(true);
       setResolvedAt(result.resolved_at);
     } catch (err) {
@@ -159,10 +197,17 @@ export default function SolveCaptchaPage() {
           {/* Screenshot Card */}
           <div className="rounded-xl border border-gray-200 bg-white shadow-sm">
             <div className="border-b border-gray-200 px-6 py-4">
-              <h2 className="text-lg font-semibold text-gray-900">CAPTCHA Screenshot</h2>
+              <h2 className="text-lg font-semibold text-gray-900">
+                {browserSessionId ? "Live Browser View" : "CAPTCHA Screenshot"}
+              </h2>
             </div>
             <div className="p-6">
-              {escalation.screenshot ? (
+              {browserSessionId && !isResolved && !isTimedOut ? (
+                <LiveBrowserViewer
+                  sessionId={browserSessionId}
+                  onSessionClosed={() => setBrowserSessionId(null)}
+                />
+              ) : escalation.screenshot ? (
                 <div className="overflow-hidden rounded-lg border border-gray-200 bg-gray-50">
                   <img
                     src={escalation.screenshot}

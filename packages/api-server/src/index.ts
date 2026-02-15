@@ -18,6 +18,7 @@ import { createTrustRouter } from "./routes/trust.js";
 import { createApiKeysRouter } from "./routes/api-keys.js";
 import { createApprovalsRouter } from "./routes/approvals.js";
 import { createEscalationsRouter } from "./routes/escalations.js";
+import { createBrowserSessionsRouter } from "./routes/browser-sessions.js";
 import { createWebhookRouter } from "./routes/webhooks.js";
 import { createTelegramRouter } from "./routes/telegram.js";
 import { createHealthRouter } from "./middleware/health.js";
@@ -46,7 +47,7 @@ export async function createApp(connectionString: string = DATABASE_URL): Promis
 
   app.use("*", cors({
     origin: allowedOrigins,
-    allowMethods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+    allowMethods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
     allowHeaders: ['Content-Type', 'Authorization', 'X-Webhook-Secret', 'X-AgentPass-ID', 'X-AgentPass-Signature', 'X-Request-ID'],
   }));
 
@@ -80,6 +81,7 @@ export async function createApp(connectionString: string = DATABASE_URL): Promis
   const apiKeysRouter = createApiKeysRouter(db);
   const approvalsRouter = createApprovalsRouter(db);
   const escalationsRouter = createEscalationsRouter(db);
+  const browserSessionsRouter = createBrowserSessionsRouter(db);
   const webhookRouter = createWebhookRouter(db);
   const telegramRouter = createTelegramRouter();
   const healthRouter = createHealthRouter(db);
@@ -99,6 +101,8 @@ export async function createApp(connectionString: string = DATABASE_URL): Promis
   app.route("/approvals", approvalsRouter);
   // CAPTCHA escalation management
   app.route("/escalations", escalationsRouter);
+  // Browser session management (live CAPTCHA viewing)
+  app.route("/browser-sessions", browserSessionsRouter);
   // Webhook routes for external services (email worker, etc.)
   app.route("/webhook", webhookRouter);
   // Telegram routes for bot webhooks and account linking

@@ -21,6 +21,7 @@ import { WebhookService } from "./services/webhook-service.js";
 import { ApprovalService } from "./services/approval-service.js";
 import { SessionService } from "./services/session-service.js";
 import { CaptchaService } from "./services/captcha-service.js";
+import { BrowserSessionService } from "./services/browser-session-service.js";
 import { registerAllTools } from "./tools/index.js";
 import { ApiClient } from "./services/api-client.js";
 import { CredentialVault } from "@agentpass/core";
@@ -118,6 +119,14 @@ async function createServer(): Promise<McpServer> {
   const telegramBot = new TelegramBotService({ approvalService });
 
   const captchaService = new CaptchaService(webhookService, apiClient);
+
+  // Initialize browser session service if API client is available
+  let browserSessionService: BrowserSessionService | undefined;
+  if (apiClient) {
+    browserSessionService = new BrowserSessionService(apiClient);
+    captchaService.setBrowserSessionService(browserSessionService);
+  }
+
   const authService = new AuthService(identityService, credentialService);
   const emailService = new EmailServiceAdapter();
   const sessionService = new SessionService();
@@ -136,10 +145,14 @@ async function createServer(): Promise<McpServer> {
     approvalService,
     sessionService,
     captchaService,
+    browserSessionService,
   });
 
   // Graceful shutdown handler for Telegram bot and SMS service
   const originalShutdown = async () => {
+    if (browserSessionService) {
+      await browserSessionService.stopAll();
+    }
     await telegramBot.stop();
     if ("shutdown" in smsService && typeof smsService.shutdown === "function") {
       smsService.shutdown();
