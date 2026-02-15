@@ -10,6 +10,7 @@ import AgentDetailPage from "./pages/AgentDetailPage.js";
 import ActivityPage from "./pages/ActivityPage.js";
 import ApprovalsPage from "./pages/ApprovalsPage.js";
 import SettingsPage from "./pages/SettingsPage.js";
+import SolveCaptchaPage from "./pages/SolveCaptchaPage.js";
 import { useEffect } from "react";
 import { apiClient } from "./api/client.js";
 
@@ -59,6 +60,7 @@ function AppContent() {
           <Route path="/activity" element={<ActivityPage />} />
           <Route path="/approvals" element={<ApprovalsPage />} />
           <Route path="/settings" element={<SettingsPage />} />
+          <Route path="/solve/:id" element={<SolveCaptchaPage />} />
         </Route>
       </Route>
 

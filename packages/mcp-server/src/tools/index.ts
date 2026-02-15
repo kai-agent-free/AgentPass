@@ -14,6 +14,7 @@ import type { TelegramBotService } from "../services/telegram-bot.js";
 import type { WebhookService } from "../services/webhook-service.js";
 import type { ApprovalService } from "../services/approval-service.js";
 import type { SessionService } from "../services/session-service.js";
+import type { CaptchaService } from "../services/captcha-service.js";
 import { registerIdentityTools } from "./identity.js";
 import { registerCredentialTools } from "./credentials.js";
 import { registerAuthTools } from "./authenticate.js";
@@ -21,6 +22,7 @@ import { registerEmailTools } from "./email.js";
 import { registerSmsTools } from "./sms.js";
 import { registerApprovalTools } from "./approval.js";
 import { registerSessionTools } from "./session.js";
+import { registerCaptchaTools } from "./captcha.js";
 
 /**
  * Register all AgentPass MCP tools on the server.
@@ -40,6 +42,7 @@ export function registerAllTools(
     webhookService?: WebhookService;
     approvalService?: ApprovalService;
     sessionService: SessionService;
+    captchaService?: CaptchaService;
   },
 ): void {
   registerIdentityTools(server, services.identityService);
@@ -51,4 +54,7 @@ export function registerAllTools(
     registerApprovalTools(server, services.approvalService);
   }
   registerSessionTools(server, services.sessionService);
+  if (services.captchaService) {
+    registerCaptchaTools(server, services.captchaService);
+  }
 }

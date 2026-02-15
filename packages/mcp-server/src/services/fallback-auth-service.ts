@@ -18,6 +18,7 @@ import type { CredentialService } from "./credential-service.js";
 import type { SessionService } from "./session-service.js";
 import type { WebhookService } from "./webhook-service.js";
 import type { EmailServiceAdapter } from "./email-service-adapter.js";
+import type { CaptchaService } from "./captcha-service.js";
 
 // ---------------------------------------------------------------------------
 // Public types
@@ -73,6 +74,7 @@ export interface AuthFlowResult {
   session?: { token?: string; cookies?: string };
   needs_human?: boolean;
   captcha_type?: string;
+  escalation_id?: string;
   error?: string;
   retries_used: number;
 }
@@ -119,6 +121,7 @@ export class FallbackAuthService {
     private readonly webhookService: WebhookService,
     private readonly emailServiceAdapter: EmailServiceAdapter,
     private readonly browserOps: BrowserOperations,
+    private readonly captchaService?: CaptchaService,
   ) {}
 
   // -----------------------------------------------------------------------
@@ -241,17 +244,29 @@ export class FallbackAuthService {
 
       // CAPTCHA detected -- no point retrying
       if (result.captcha_detected) {
-        await this.webhookService.emit(
-          this.webhookService.createEvent(
-            "agent.captcha_needed",
-            agentInfo,
-            {
-              service,
-              captcha_type: result.captcha_type ?? "unknown",
-              phase: "login",
-            },
-          ),
-        );
+        let escalationId: string | undefined;
+
+        if (this.captchaService) {
+          const escalation = await this.captchaService.escalate(
+            passportId,
+            agentInfo.name,
+            result.captcha_type ?? "unknown",
+          );
+          escalationId = escalation.escalation_id;
+        } else {
+          // Fallback: webhook-only notification (no captchaService)
+          await this.webhookService.emit(
+            this.webhookService.createEvent(
+              "agent.captcha_needed",
+              agentInfo,
+              {
+                service,
+                captcha_type: result.captcha_type ?? "unknown",
+                phase: "login",
+              },
+            ),
+          );
+        }
 
         return {
           success: false,
@@ -260,6 +275,7 @@ export class FallbackAuthService {
           passport_id: passportId,
           needs_human: true,
           captcha_type: result.captcha_type,
+          escalation_id: escalationId,
           error: result.error ?? "CAPTCHA detected during login",
           retries_used: attempt,
         };
@@ -314,17 +330,29 @@ export class FallbackAuthService {
       });
 
       if (result.captcha_detected) {
-        await this.webhookService.emit(
-          this.webhookService.createEvent(
-            "agent.captcha_needed",
-            agentInfo,
-            {
-              service,
-              captcha_type: result.captcha_type ?? "unknown",
-              phase: "registration",
-            },
-          ),
-        );
+        let escalationId: string | undefined;
+
+        if (this.captchaService) {
+          const escalation = await this.captchaService.escalate(
+            passportId,
+            agentInfo.name,
+            result.captcha_type ?? "unknown",
+          );
+          escalationId = escalation.escalation_id;
+        } else {
+          // Fallback: webhook-only notification (no captchaService)
+          await this.webhookService.emit(
+            this.webhookService.createEvent(
+              "agent.captcha_needed",
+              agentInfo,
+              {
+                service,
+                captcha_type: result.captcha_type ?? "unknown",
+                phase: "registration",
+              },
+            ),
+          );
+        }
 
         return {
           success: false,
@@ -333,6 +361,7 @@ export class FallbackAuthService {
           passport_id: passportId,
           needs_human: true,
           captcha_type: result.captcha_type,
+          escalation_id: escalationId,
           error: result.error ?? "CAPTCHA detected during registration",
           retries_used: attempt,
         };

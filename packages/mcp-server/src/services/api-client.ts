@@ -29,6 +29,25 @@ export interface HealthCheckResult {
   status: string;
 }
 
+export interface CreateEscalationParams {
+  passport_id: string;
+  captcha_type: string;
+  service: string;
+  screenshot?: string;
+}
+
+export interface CreateEscalationResult {
+  escalation_id: string;
+  status: string;
+  created_at: string;
+}
+
+export interface EscalationStatus {
+  id: string;
+  status: "pending" | "resolved" | "timed_out";
+  resolved_at: string | null;
+}
+
 /** Error thrown when the API returns an unexpected response. */
 export class ApiClientError extends Error {
   readonly statusCode: number;
@@ -113,6 +132,55 @@ export class ApiClient {
     });
 
     const data = (await response.json()) as HealthCheckResult;
+    return data;
+  }
+
+  /**
+   * Create a CAPTCHA escalation on the API server.
+   *
+   * POST /escalations with escalation data. Retries up to 2 times on
+   * transient failures; does not retry on 4xx client errors.
+   */
+  async createEscalation(
+    params: CreateEscalationParams,
+  ): Promise<CreateEscalationResult> {
+    const url = `${this.apiUrl}/escalations`;
+    const body = JSON.stringify({
+      passport_id: params.passport_id,
+      captcha_type: params.captcha_type,
+      service: params.service,
+      screenshot: params.screenshot,
+    });
+
+    const response = await this.requestWithRetry(url, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${this.apiKey}`,
+      },
+      body,
+    });
+
+    const data = (await response.json()) as CreateEscalationResult;
+    return data;
+  }
+
+  /**
+   * Get the status of a CAPTCHA escalation.
+   *
+   * GET /escalations/:id — checks whether the owner has resolved the CAPTCHA.
+   */
+  async getEscalationStatus(id: string): Promise<EscalationStatus> {
+    const url = `${this.apiUrl}/escalations/${encodeURIComponent(id)}`;
+
+    const response = await this.requestWithRetry(url, {
+      method: "GET",
+      headers: {
+        Authorization: `Bearer ${this.apiKey}`,
+      },
+    });
+
+    const data = (await response.json()) as EscalationStatus;
     return data;
   }
 

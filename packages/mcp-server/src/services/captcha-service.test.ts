@@ -79,7 +79,7 @@ describe("CaptchaService", () => {
         "recaptcha_v2",
       );
 
-      const result = captchaService.checkResolution(escalation_id);
+      const result = await captchaService.checkResolution(escalation_id);
 
       expect(result.resolved).toBe(false);
       expect(result.timed_out).toBeUndefined();
@@ -96,12 +96,12 @@ describe("CaptchaService", () => {
 
       captchaService.resolve(escalation_id);
 
-      const result = captchaService.checkResolution(escalation_id);
+      const result = await captchaService.checkResolution(escalation_id);
       expect(result.resolved).toBe(true);
     });
 
-    it("should return not resolved for unknown escalation ID", () => {
-      const result = captchaService.checkResolution("esc_nonexistent");
+    it("should return not resolved for unknown escalation ID", async () => {
+      const result = await captchaService.checkResolution("esc_nonexistent");
 
       expect(result.resolved).toBe(false);
     });
@@ -120,7 +120,7 @@ describe("CaptchaService", () => {
         Date.now() + captchaService.getTimeout() + 1000,
       );
 
-      const result = captchaService.checkResolution(escalation_id);
+      const result = await captchaService.checkResolution(escalation_id);
 
       expect(result.resolved).toBe(false);
       expect(result.timed_out).toBe(true);

@@ -66,6 +66,17 @@ export interface Approval {
   created_at: string;
 }
 
+export interface Escalation {
+  id: string;
+  passport_id: string;
+  captcha_type: string;
+  service: string;
+  screenshot: string | null;
+  status: "pending" | "resolved" | "timed_out";
+  created_at: string;
+  resolved_at: string | null;
+}
+
 export interface RegisterPassportRequest {
   public_key: string;
   owner_email: string;
@@ -288,6 +299,33 @@ class ApiClient {
       method: "POST",
       body: JSON.stringify({ approved }),
     });
+  }
+
+  /**
+   * Get a single escalation by ID.
+   */
+  async getEscalation(id: string): Promise<Escalation> {
+    return this.fetch<Escalation>(`/escalations/${id}`);
+  }
+
+  /**
+   * Resolve an escalation (mark CAPTCHA as solved by the owner).
+   */
+  async resolveEscalation(id: string): Promise<{ status: string; resolved_at: string }> {
+    return this.fetch<{ status: string; resolved_at: string }>(`/escalations/${id}/resolve`, {
+      method: "POST",
+    });
+  }
+
+  /**
+   * List escalations, optionally filtered by status.
+   */
+  async listEscalations(status?: string): Promise<Escalation[]> {
+    const params = new URLSearchParams();
+    if (status) params.set("status", status);
+    const query = params.toString();
+    const response = await this.fetch<{ escalations: Escalation[] }>(`/escalations${query ? `?${query}` : ""}`);
+    return response.escalations;
   }
 }
 

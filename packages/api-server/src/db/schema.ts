@@ -145,5 +145,22 @@ export async function initDatabase(connectionString?: string): Promise<Sql> {
 
   await sql`CREATE INDEX IF NOT EXISTS idx_approvals_passport_id ON approvals(passport_id)`;
 
+  // Create escalations table (CAPTCHA escalation flow)
+  await sql`
+    CREATE TABLE IF NOT EXISTS escalations (
+      id           TEXT PRIMARY KEY,
+      passport_id  TEXT NOT NULL REFERENCES passports(id),
+      captcha_type TEXT NOT NULL DEFAULT 'unknown',
+      service      TEXT NOT NULL DEFAULT '',
+      screenshot   TEXT,
+      status       TEXT NOT NULL DEFAULT 'pending',
+      created_at   TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      resolved_at  TIMESTAMPTZ
+    )
+  `;
+
+  await sql`CREATE INDEX IF NOT EXISTS idx_escalations_passport_id ON escalations(passport_id)`;
+  await sql`CREATE INDEX IF NOT EXISTS idx_escalations_status ON escalations(status)`;
+
   return sql;
 }

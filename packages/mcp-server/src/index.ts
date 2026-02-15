@@ -20,6 +20,7 @@ import { TelegramBotService } from "./services/telegram-bot.js";
 import { WebhookService } from "./services/webhook-service.js";
 import { ApprovalService } from "./services/approval-service.js";
 import { SessionService } from "./services/session-service.js";
+import { CaptchaService } from "./services/captcha-service.js";
 import { registerAllTools } from "./tools/index.js";
 import { ApiClient } from "./services/api-client.js";
 import { CredentialVault } from "@agentpass/core";
@@ -116,6 +117,7 @@ async function createServer(): Promise<McpServer> {
   // Initialize Telegram bot with approval service
   const telegramBot = new TelegramBotService({ approvalService });
 
+  const captchaService = new CaptchaService(webhookService, apiClient);
   const authService = new AuthService(identityService, credentialService);
   const emailService = new EmailServiceAdapter();
   const sessionService = new SessionService();
@@ -133,6 +135,7 @@ async function createServer(): Promise<McpServer> {
     webhookService,
     approvalService,
     sessionService,
+    captchaService,
   });
 
   // Graceful shutdown handler for Telegram bot and SMS service
