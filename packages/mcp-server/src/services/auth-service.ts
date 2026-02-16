@@ -2,14 +2,15 @@
  * Authentication orchestration service.
  *
  * Coordinates the authenticate() flow:
- * 1. Check credential vault for existing credentials
- * 2. If found → attempt login (fallback_login)
- * 3. If not found → trigger registration (fallback_register)
- * 4. Future: detect native auth via /.well-known/agentpass.json
+ * 1. Try native auth via /.well-known/agentpass.json (Ed25519 challenge-response)
+ * 2. If not supported → check credential vault for fallback
+ * 3. If credentials exist → fallback_login
+ * 4. If no credentials → fallback_register
  */
 
 import type { IdentityService } from "./identity-service.js";
 import type { CredentialService } from "./credential-service.js";
+import { NativeAuthService } from "./native-auth-service.js";
 
 export interface AuthResult {
   success: boolean;
@@ -22,21 +23,25 @@ export interface AuthResult {
 }
 
 export class AuthService {
+  private readonly nativeAuthService: NativeAuthService;
+
   constructor(
     private readonly identityService: IdentityService,
     private readonly credentialService: CredentialService,
-  ) {}
+    nativeAuthService?: NativeAuthService,
+  ) {
+    this.nativeAuthService = nativeAuthService ?? new NativeAuthService();
+  }
 
   /**
    * Authenticate an agent on a target service.
    *
    * Flow:
    * 1. Verify the identity exists and is active
-   * 2. Check if credentials already exist for this service
-   * 3. If credentials exist → return fallback_login result
-   * 4. If no credentials → return fallback_register result (needs browser automation)
-   *
-   * Browser automation and native auth will be integrated in future tasks.
+   * 2. Try native auth (/.well-known/agentpass.json → Ed25519 challenge-response)
+   * 3. If native not supported → check credential vault for fallback
+   * 4. If credentials exist → fallback_login
+   * 5. If no credentials → fallback_register
    */
   async authenticate(input: {
     passport_id: string;
@@ -56,14 +61,44 @@ export class AuthService {
       };
     }
 
-    // Step 2: Check for existing credentials
+    // Step 2: Try native auth first
+    const nativeSupport = await this.nativeAuthService.checkNativeSupport(input.service_url);
+    if (nativeSupport.supported) {
+      const privateKey = await this.identityService.getPrivateKey(input.passport_id);
+      if (privateKey) {
+        const nativeResult = await this.nativeAuthService.authenticateNative(
+          input.passport_id,
+          input.service_url,
+          privateKey,
+        );
+        if (nativeResult.success) {
+          return {
+            success: true,
+            method: "native",
+            service: serviceDomain,
+            passport_id: input.passport_id,
+            session_token: nativeResult.session_token,
+          };
+        }
+        // Native auth failed — return error, don't fall through to fallback
+        return {
+          success: false,
+          method: "native",
+          service: serviceDomain,
+          passport_id: input.passport_id,
+          error: nativeResult.error,
+        };
+      }
+    }
+
+    // Step 3: Check for existing credentials (fallback)
     const credential = await this.credentialService.getCredential(
       input.passport_id,
       serviceDomain,
     );
 
     if (credential) {
-      // Step 3: Credentials found — would attempt login via browser
+      // Step 4: Credentials found — would attempt login via browser
       return {
         success: true,
         method: "fallback_login",
@@ -73,7 +108,7 @@ export class AuthService {
       };
     }
 
-    // Step 4: No credentials — would trigger registration via browser
+    // Step 5: No credentials — would trigger registration via browser
     return {
       success: false,
       method: "fallback_register",
