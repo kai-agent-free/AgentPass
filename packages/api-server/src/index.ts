@@ -125,9 +125,11 @@ export async function createApp(connectionString: string = DATABASE_URL): Promis
     },
     async (entry) => {
       try {
+        const auditId = crypto.randomUUID();
         await db`
-          INSERT INTO audit_log (passport_id, action, service, method, result, details)
+          INSERT INTO audit_log (id, passport_id, action, service, method, result, details)
           VALUES (
+            ${auditId},
             ${entry.passport_id},
             ${entry.action},
             ${entry.service},

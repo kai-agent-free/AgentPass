@@ -146,9 +146,11 @@ export function createPassportsRouter(db: Sql): Hono<{ Variables: AuthVariables 
     const agentEmail = `${sanitizedName || "agent"}@agent-mail.xyz`;
 
     // Write audit log entry for passport creation
+    const auditId = crypto.randomUUID();
     await db`
-      INSERT INTO audit_log (passport_id, action, service, method, result, details)
+      INSERT INTO audit_log (id, passport_id, action, service, method, result, details)
       VALUES (
+        ${auditId},
         ${passportId},
         'create_identity',
         'agentpass',
