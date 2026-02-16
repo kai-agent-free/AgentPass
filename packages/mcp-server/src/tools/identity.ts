@@ -36,40 +36,27 @@ export function registerIdentityTools(
           .max(256)
           .optional()
           .describe("Human-readable description of the agent"),
-        owner_email: z
-          .string()
-          .email()
-          .describe("Email address of the agent owner"),
       },
     },
-    async ({ name, description, owner_email }) => {
+    async ({ name, description }) => {
       const result = await identityService.createIdentity({
         name,
         description,
-        owner_email,
       });
 
-      const { passport, apiRegistered, email } = result;
+      const { passport, email } = result;
 
       const responsePayload: Record<string, unknown> = {
         passport_id: passport.passport_id,
         name: passport.identity.name,
         description: passport.identity.description,
         public_key: passport.identity.public_key,
-        owner_email: passport.owner.email,
         created_at: passport.identity.created_at,
         status: "active",
-        api_registered: apiRegistered,
       };
 
       if (email) {
         responsePayload.email = email;
-      }
-
-      if (!apiRegistered) {
-        responsePayload.warning =
-          "Passport was created locally but could not be registered on the AgentPass API server. " +
-          "Set AGENTPASS_API_KEY to enable API registration.";
       }
 
       return {

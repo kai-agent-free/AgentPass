@@ -13,7 +13,7 @@ export interface ApiClientConfig {
 }
 
 export interface RegisterPassportParams {
-  passport_id: string;
+  passport_id?: string;
   public_key: string;
   name: string;
   description: string;
@@ -117,12 +117,15 @@ export class ApiClient {
     params: RegisterPassportParams,
   ): Promise<RegisterPassportResult> {
     const url = `${this.apiUrl}/passports`;
-    const body = JSON.stringify({
-      passport_id: params.passport_id,
+    const payload: Record<string, string> = {
       public_key: params.public_key,
       name: params.name,
       description: params.description,
-    });
+    };
+    if (params.passport_id) {
+      payload.passport_id = params.passport_id;
+    }
+    const body = JSON.stringify(payload);
 
     const response = await this.requestWithRetry(url, {
       method: "POST",

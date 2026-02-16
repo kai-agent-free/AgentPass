@@ -48,28 +48,42 @@ export class IdentityService {
   /**
    * Create a new agent identity.
    *
-   * Generates an Ed25519 key pair, builds a passport, and stores everything
-   * in the encrypted vault. The private key never leaves the local store.
+   * Generates an Ed25519 key pair, registers the passport on the AgentPass
+   * API server, and stores everything in the encrypted vault. The private
+   * key never leaves the local store.
    *
-   * If an API client is configured, the passport is also registered on the
-   * AgentPass API server. Registration failure is non-fatal (graceful
-   * degradation) -- the passport is still created locally.
+   * Requires a configured API client (AGENTPASS_API_KEY). The owner email
+   * is resolved server-side from the API key — no need to pass it explicitly.
    */
   async createIdentity(input: {
     name: string;
     description?: string;
-    owner_email: string;
   }): Promise<CreateIdentityResult> {
     this.ensureInitialized();
 
+    if (!this.apiClient) {
+      throw new Error(
+        "AGENTPASS_API_KEY is not configured. Cannot create passports without API registration.",
+      );
+    }
+
     const keyPair: KeyPair = generateKeyPair();
+
+    // Register on API server — owner_email is resolved from API key
+    const apiResult = await this.apiClient.registerPassport({
+      public_key: keyPair.publicKey,
+      name: input.name,
+      description: input.description ?? "",
+    });
+
     const passport = createPassport(
       {
         name: input.name,
         description: input.description ?? "",
-        owner_email: input.owner_email,
+        owner_email: apiResult.email,
       },
       keyPair.publicKey,
+      apiResult.passport_id,
     );
 
     const storedIdentity: StoredIdentity = {
@@ -80,30 +94,12 @@ export class IdentityService {
 
     await this.vault!.storeIdentity(storedIdentity);
 
-    // Register on API server if client is available
-    if (this.apiClient) {
-      try {
-        const apiResult = await this.apiClient.registerPassport({
-          passport_id: passport.passport_id,
-          public_key: keyPair.publicKey,
-          name: input.name,
-          description: input.description ?? "",
-        });
-        return {
-          passport,
-          publicKey: keyPair.publicKey,
-          apiRegistered: true,
-          email: apiResult.email,
-        };
-      } catch (error) {
-        console.warn(
-          `[AgentPass] Failed to register passport on API server: ${error instanceof Error ? error.message : String(error)}`,
-        );
-        return { passport, publicKey: keyPair.publicKey, apiRegistered: false };
-      }
-    }
-
-    return { passport, publicKey: keyPair.publicKey, apiRegistered: false };
+    return {
+      passport,
+      publicKey: keyPair.publicKey,
+      apiRegistered: true,
+      email: apiResult.email,
+    };
   }
 
   /**

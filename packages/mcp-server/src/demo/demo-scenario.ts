@@ -59,7 +59,6 @@ export async function runDemo(): Promise<DemoResult> {
   const { passport, publicKey } = await identityService.createIdentity({
     name: "demo-agent",
     description: "Demo agent for showcase",
-    owner_email: "demo@agent-mail.xyz",
   });
   passportId = passport.passport_id;
 

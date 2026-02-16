@@ -31,9 +31,10 @@ function generateAgentEmail(agentName: string): string {
 export function createPassport(
   input: CreatePassportInput,
   publicKey: string,
+  passportId?: string,
 ): AgentPassport {
   const now = new Date().toISOString();
-  const passportId = generatePassportId();
+  passportId = passportId || generatePassportId();
   const ownerId = crypto.randomUUID();
   const agentEmail = generateAgentEmail(input.name);
 

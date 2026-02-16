@@ -4,7 +4,8 @@
       "command": "node",
       "args": ["packages/mcp-server/dist/index.js"],
       "env": {
-        "AGENTPASS_API_URL": "https://api.agentpass.space"
+        "AGENTPASS_API_URL": "https://api.agentpass.space",
+        "AGENTPASS_API_KEY": "${AGENTPASS_API_KEY}"
       }
     }
   }
