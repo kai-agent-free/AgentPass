@@ -5,7 +5,10 @@
       "args": ["packages/mcp-server/dist/index.js"],
       "env": {
         "AGENTPASS_API_URL": "https://api.agentpass.space",
-        "AGENTPASS_API_KEY": "${AGENTPASS_API_KEY}"
+        "AGENTPASS_API_KEY": "${AGENTPASS_API_KEY}",
+        "AGENTPASS_BROWSER_MODE": "agentic",
+        "ANTHROPIC_API_KEY": "${ANTHROPIC_API_KEY}",
+        "AGENTPASS_BROWSER_HEADLESS": "false"
       }
     }
   }

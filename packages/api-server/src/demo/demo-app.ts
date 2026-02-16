@@ -27,14 +27,28 @@ interface AgentSession {
   authenticated_at: string;
 }
 
+/** Callback to write an audit log entry from the demo app. */
+export interface DemoAuditEntry {
+  passport_id: string;
+  action: string;
+  service: string;
+  method: string;
+  result: "success" | "failure";
+  details?: Record<string, unknown>;
+}
+
 /**
  * Create the demo Hono application.
  *
  * @param publicKeyLookup — optional callback to resolve a passport_id to its
  *   Ed25519 public key (base64url). When omitted the demo app uses a built-in
  *   in-memory registry that callers can populate via the returned `registerAgent` helper.
+ * @param onAuditLog — optional callback to persist audit entries to the database.
  */
-export function createDemoApp(publicKeyLookup?: (passportId: string) => string | undefined | Promise<string | undefined>) {
+export function createDemoApp(
+  publicKeyLookup?: (passportId: string) => string | undefined | Promise<string | undefined>,
+  onAuditLog?: (entry: DemoAuditEntry) => void | Promise<void>,
+) {
   const app = new Hono();
 
   // --- In-memory stores ---
@@ -147,6 +161,14 @@ export function createDemoApp(publicKeyLookup?: (passportId: string) => string |
     }
 
     if (!valid) {
+      onAuditLog?.({
+        passport_id,
+        action: "authenticate",
+        service: "demo",
+        method: "native",
+        result: "failure",
+        details: { reason: "invalid_signature" },
+      });
       return c.json({ error: "Invalid signature" }, 401);
     }
 
@@ -161,6 +183,16 @@ export function createDemoApp(publicKeyLookup?: (passportId: string) => string |
       passport_id,
       agent_name: agentName,
       authenticated_at: new Date().toISOString(),
+    });
+
+    // Log successful authentication
+    onAuditLog?.({
+      passport_id,
+      action: "authenticate",
+      service: "demo",
+      method: "native",
+      result: "success",
+      details: { agent_name: agentName },
     });
 
     return c.json({

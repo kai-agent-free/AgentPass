@@ -118,10 +118,29 @@ export async function createApp(connectionString: string = DATABASE_URL): Promis
   app.route("/telegram", telegramRouter);
 
   // Demo service — "Login with AgentPass" native auth showcase
-  const { app: demoApp } = createDemoApp(async (passportId: string) => {
-    const rows = await db`SELECT public_key FROM passports WHERE id = ${passportId} AND status = 'active' LIMIT 1`;
-    return rows[0]?.public_key as string | undefined;
-  });
+  const { app: demoApp } = createDemoApp(
+    async (passportId: string) => {
+      const rows = await db`SELECT public_key FROM passports WHERE id = ${passportId} AND status = 'active' LIMIT 1`;
+      return rows[0]?.public_key as string | undefined;
+    },
+    async (entry) => {
+      try {
+        await db`
+          INSERT INTO audit_log (passport_id, action, service, method, result, details)
+          VALUES (
+            ${entry.passport_id},
+            ${entry.action},
+            ${entry.service},
+            ${entry.method},
+            ${entry.result},
+            ${JSON.stringify(entry.details ?? {})}::jsonb
+          )
+        `;
+      } catch (err) {
+        console.error("[Demo audit log]", err);
+      }
+    },
+  );
   app.route("/demo", demoApp);
 
   // --- Global error handler ---
