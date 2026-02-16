@@ -22,6 +22,7 @@ interface AuthContextType extends AuthState {
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 const TOKEN_KEY = "agentpass_token";
+const OWNER_KEY = "agentpass_owner";
 const API_BASE_URL = import.meta.env.VITE_API_URL || "http://localhost:3846";
 
 interface AuthProviderProps {
@@ -76,9 +77,35 @@ export function AuthProvider({ children }: AuthProviderProps) {
         return;
       }
 
+      // Restore cached owner info immediately (no network request)
+      const cachedOwner = localStorage.getItem(OWNER_KEY);
+      if (cachedOwner) {
+        try {
+          const owner = JSON.parse(cachedOwner) as Owner;
+          setState({
+            token: storedToken,
+            owner,
+            isAuthenticated: true,
+            isLoading: false,
+          });
+          // Validate in background — if token expired, logout on next API call via onUnauthorized
+          validateToken(storedToken).then((freshOwner) => {
+            if (freshOwner) {
+              localStorage.setItem(OWNER_KEY, JSON.stringify(freshOwner));
+            }
+            // Don't logout on background validation failure — let onUnauthorized handle it
+          });
+          return;
+        } catch {
+          // Corrupted cache — fall through to network validation
+        }
+      }
+
+      // No cached owner — must validate via network
       const owner = await validateToken(storedToken);
 
       if (owner) {
+        localStorage.setItem(OWNER_KEY, JSON.stringify(owner));
         setState({
           token: storedToken,
           owner,
@@ -86,8 +113,8 @@ export function AuthProvider({ children }: AuthProviderProps) {
           isLoading: false,
         });
       } else {
-        // Token is invalid, clear it
         localStorage.removeItem(TOKEN_KEY);
+        localStorage.removeItem(OWNER_KEY);
         setState({
           token: null,
           owner: null,
@@ -122,6 +149,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
     };
 
     localStorage.setItem(TOKEN_KEY, data.token);
+    localStorage.setItem(OWNER_KEY, JSON.stringify(owner));
 
     setState({
       token: data.token,
@@ -153,6 +181,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
     };
 
     localStorage.setItem(TOKEN_KEY, data.token);
+    localStorage.setItem(OWNER_KEY, JSON.stringify(owner));
 
     setState({
       token: data.token,
@@ -164,6 +193,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
 
   const logout = () => {
     localStorage.removeItem(TOKEN_KEY);
+    localStorage.removeItem(OWNER_KEY);
     setState({
       token: null,
       owner: null,
