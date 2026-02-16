@@ -9,6 +9,19 @@ interface SessionEntry {
   session_token: string;
 }
 
+interface ProfileResult {
+  passport_id: string;
+  agent_name: string;
+  authenticated_at: string;
+}
+
+interface ProfileState {
+  token: string;
+  loading: boolean;
+  result: ProfileResult | null;
+  error: string | null;
+}
+
 // --- Constants ---
 
 const API_URL = import.meta.env.VITE_API_URL || "http://localhost:3846";
@@ -25,6 +38,12 @@ const POLL_INTERVAL = 3000;
 export default function DemoPage() {
   const [sessions, setSessions] = useState<SessionEntry[]>([]);
   const [loading, setLoading] = useState(true);
+  const [profile, setProfile] = useState<ProfileState>({
+    token: "",
+    loading: false,
+    result: null,
+    error: null,
+  });
 
   const fetchSessions = useCallback(async () => {
     try {
@@ -50,8 +69,35 @@ export default function DemoPage() {
     try {
       await fetch(`${DEMO_AUTH_BASE}/sessions`, { method: "DELETE" });
       setSessions([]);
+      setProfile({ token: "", loading: false, result: null, error: null });
     } catch {
       // best effort
+    }
+  };
+
+  const tryProtectedEndpoint = async (token: string) => {
+    setProfile({ token, loading: true, result: null, error: null });
+    try {
+      const res = await fetch(`${DEMO_AUTH_BASE}/profile`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (!res.ok) {
+        const data = await res.json();
+        setProfile((p) => ({
+          ...p,
+          loading: false,
+          error: data.error || `HTTP ${res.status}`,
+        }));
+        return;
+      }
+      const data = await res.json();
+      setProfile((p) => ({ ...p, loading: false, result: data }));
+    } catch {
+      setProfile((p) => ({
+        ...p,
+        loading: false,
+        error: "Network error",
+      }));
     }
   };
 
@@ -261,6 +307,180 @@ export default function DemoPage() {
             </div>
           )}
         </div>
+
+        {/* Protected endpoint demo */}
+        {sessions.length > 0 && (
+          <div className="mt-8 rounded-2xl border border-gray-800 bg-gray-900/80 p-6 shadow-2xl backdrop-blur-sm sm:p-8">
+            <div className="mb-6 flex items-center gap-3 border-b border-gray-800 pb-6">
+              <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-indigo-500/20">
+                <svg
+                  className="h-6 w-6 text-indigo-400"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  strokeWidth={1.5}
+                  stroke="currentColor"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    d="M16.5 10.5V6.75a4.5 4.5 0 10-9 0v3.75m-.75 11.25h10.5a2.25 2.25 0 002.25-2.25v-6.75a2.25 2.25 0 00-2.25-2.25H6.75a2.25 2.25 0 00-2.25 2.25v6.75a2.25 2.25 0 002.25 2.25z"
+                  />
+                </svg>
+              </div>
+              <div>
+                <h2 className="text-lg font-semibold text-white">
+                  Protected Endpoint
+                </h2>
+                <p className="text-sm text-gray-500">
+                  Use the session token to access protected resources
+                </p>
+              </div>
+            </div>
+
+            {/* Code example */}
+            <div className="mb-6 rounded-xl border border-gray-800 bg-gray-950 p-4">
+              <div className="mb-2 flex items-center gap-2 text-xs text-gray-500">
+                <div className="flex gap-1">
+                  <div className="h-2.5 w-2.5 rounded-full bg-red-500/60" />
+                  <div className="h-2.5 w-2.5 rounded-full bg-yellow-500/60" />
+                  <div className="h-2.5 w-2.5 rounded-full bg-green-500/60" />
+                </div>
+                <span>Using the session token</span>
+              </div>
+              <pre className="overflow-x-auto text-sm leading-relaxed">
+                <code>
+                  <span className="text-gray-500">
+                    {"// After authenticate() returns session_token"}
+                  </span>
+                  {"\n"}
+                  <span className="text-purple-400">const</span>
+                  <span className="text-gray-300"> res </span>
+                  <span className="text-purple-400">= await</span>
+                  <span className="text-yellow-300"> fetch</span>
+                  <span className="text-gray-300">(</span>
+                  <span className="text-emerald-300">
+                    '
+                    {SITE_URL}
+                    /api/profile'
+                  </span>
+                  <span className="text-gray-300">, {"{"}</span>
+                  {"\n"}
+                  <span className="text-gray-300">{"  "}</span>
+                  <span className="text-white">headers</span>
+                  <span className="text-gray-300">: {"{"}</span>
+                  {"\n"}
+                  <span className="text-gray-300">{"    "}</span>
+                  <span className="text-emerald-300">'Authorization'</span>
+                  <span className="text-gray-300">: </span>
+                  <span className="text-emerald-300">{"'Bearer <session_token>'"}</span>
+                  {"\n"}
+                  <span className="text-gray-300">{"  }"}</span>
+                  {"\n"}
+                  <span className="text-gray-300">{"})"}</span>
+                </code>
+              </pre>
+            </div>
+
+            {/* Try it buttons */}
+            <div className="mb-4">
+              <p className="mb-3 text-xs font-medium text-gray-500">
+                Try it with an active session:
+              </p>
+              <div className="flex flex-wrap gap-2">
+                {sessions.map((s) => (
+                  <button
+                    key={s.session_token}
+                    onClick={() => tryProtectedEndpoint(s.session_token)}
+                    disabled={profile.loading}
+                    className="inline-flex items-center gap-2 rounded-lg border border-indigo-500/30 bg-indigo-500/10 px-3 py-2 text-xs font-medium text-indigo-300 transition-colors hover:bg-indigo-500/20 disabled:opacity-50"
+                  >
+                    <svg
+                      className="h-3.5 w-3.5"
+                      fill="none"
+                      viewBox="0 0 24 24"
+                      strokeWidth={2}
+                      stroke="currentColor"
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        d="M5.25 5.653c0-.856.917-1.398 1.667-.986l11.54 6.348a1.125 1.125 0 010 1.971l-11.54 6.347a1.125 1.125 0 01-1.667-.985V5.653z"
+                      />
+                    </svg>
+                    GET /profile as {s.agent_name}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Result */}
+            {profile.loading && (
+              <div className="flex items-center gap-2 rounded-lg border border-gray-800 bg-gray-950/50 p-4">
+                <div className="h-4 w-4 animate-spin rounded-full border-2 border-indigo-400 border-t-transparent" />
+                <span className="text-sm text-gray-400">
+                  Calling protected endpoint...
+                </span>
+              </div>
+            )}
+
+            {profile.error && (
+              <div className="rounded-lg border border-red-500/20 bg-red-500/5 p-4">
+                <div className="flex items-center gap-2">
+                  <svg
+                    className="h-4 w-4 text-red-400"
+                    fill="none"
+                    viewBox="0 0 24 24"
+                    strokeWidth={2}
+                    stroke="currentColor"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      d="M6 18L18 6M6 6l12 12"
+                    />
+                  </svg>
+                  <span className="text-sm text-red-300">{profile.error}</span>
+                </div>
+              </div>
+            )}
+
+            {profile.result && (
+              <div className="rounded-lg border border-emerald-500/20 bg-emerald-500/5 p-4">
+                <div className="mb-3 flex items-center gap-2">
+                  <svg
+                    className="h-4 w-4 text-emerald-400"
+                    fill="none"
+                    viewBox="0 0 24 24"
+                    strokeWidth={2}
+                    stroke="currentColor"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
+                    />
+                  </svg>
+                  <span className="text-sm font-medium text-emerald-300">
+                    200 OK — Agent identity verified
+                  </span>
+                </div>
+                <div className="rounded-lg border border-gray-800 bg-gray-950 p-3">
+                  <pre className="overflow-x-auto text-xs leading-relaxed">
+                    <code className="text-gray-300">
+                      {JSON.stringify(profile.result, null, 2)}
+                    </code>
+                  </pre>
+                </div>
+                <p className="mt-3 text-xs text-gray-500">
+                  The service now knows exactly which agent is making the
+                  request — passport ID, name, and when they authenticated.
+                  Use this to apply per-agent rate limits, permissions, or
+                  audit logging.
+                </p>
+              </div>
+            )}
+          </div>
+        )}
 
         {/* How it works explanation */}
         <div className="mt-8 rounded-2xl border border-gray-800 bg-gray-900/60 p-6 sm:p-8">

@@ -940,102 +940,179 @@ function ForServices() {
             </div>
           </div>
 
-          {/* Code block */}
-          <div className="rounded-xl border border-gray-700 bg-gray-800/80 backdrop-blur p-6 shadow-xl">
-            <div className="mb-4 flex items-center gap-2">
-              <div className="h-3 w-3 rounded-full bg-red-500/60" />
-              <div className="h-3 w-3 rounded-full bg-yellow-500/60" />
-              <div className="h-3 w-3 rounded-full bg-green-500/60" />
-              <span className="ml-2 text-xs text-gray-500">middleware.ts</span>
+          {/* Code blocks */}
+          <div className="space-y-4">
+            {/* Middleware */}
+            <div className="rounded-xl border border-gray-700 bg-gray-800/80 backdrop-blur p-6 shadow-xl">
+              <div className="mb-4 flex items-center gap-2">
+                <div className="h-3 w-3 rounded-full bg-red-500/60" />
+                <div className="h-3 w-3 rounded-full bg-yellow-500/60" />
+                <div className="h-3 w-3 rounded-full bg-green-500/60" />
+                <span className="ml-2 text-xs text-gray-500">middleware.ts</span>
+              </div>
+              <pre className="overflow-x-auto text-sm leading-relaxed">
+                <code>
+                  <span className="text-purple-400">import</span>
+                  <span className="text-gray-300">{" { "}</span>
+                  <span className="text-cyan-300">AgentPass</span>
+                  <span className="text-gray-300">{" } "}</span>
+                  <span className="text-purple-400">from</span>
+                  <span className="text-emerald-300">
+                    {" '@agentpass/sdk'"}
+                  </span>
+                  <span className="text-gray-500">;</span>
+                  {"\n\n"}
+                  <span className="text-purple-400">const</span>
+                  <span className="text-gray-300"> ap </span>
+                  <span className="text-purple-400">=</span>
+                  <span className="text-purple-400"> new</span>
+                  <span className="text-cyan-300"> AgentPass</span>
+                  <span className="text-gray-300">{"({"}</span>
+                  {"\n"}
+                  <span className="text-gray-300">{"  "}</span>
+                  <span className="text-white">serviceId</span>
+                  <span className="text-gray-300">: </span>
+                  <span className="text-emerald-300">"your-service"</span>
+                  <span className="text-gray-300">,</span>
+                  {"\n"}
+                  <span className="text-gray-300">{"  "}</span>
+                  <span className="text-white">apiUrl</span>
+                  <span className="text-gray-300">: </span>
+                  <span className="text-emerald-300">
+                    {"'https://api.agentpass.space'"}
+                  </span>
+                  {"\n"}
+                  <span className="text-gray-300">{"});"}</span>
+                  {"\n\n"}
+                  <span className="text-gray-500">
+                    {"// Verify agent identity"}
+                  </span>
+                  {"\n"}
+                  <span className="text-purple-400">export</span>
+                  <span className="text-gray-300"> </span>
+                  <span className="text-purple-400">async</span>
+                  <span className="text-gray-300"> </span>
+                  <span className="text-purple-400">function</span>
+                  <span className="text-gray-300"> </span>
+                  <span className="text-yellow-300">authMiddleware</span>
+                  <span className="text-gray-300">(req) {"{"}</span>
+                  {"\n"}
+                  <span className="text-gray-300">{"  "}</span>
+                  <span className="text-purple-400">const</span>
+                  <span className="text-gray-300"> agent </span>
+                  <span className="text-purple-400">=</span>
+                  <span className="text-purple-400"> await</span>
+                  <span className="text-gray-300"> ap.</span>
+                  <span className="text-yellow-300">verify</span>
+                  <span className="text-gray-300">(req);</span>
+                  {"\n\n"}
+                  <span className="text-gray-300">{"  "}</span>
+                  <span className="text-gray-500">
+                    {"// Check trust score"}
+                  </span>
+                  {"\n"}
+                  <span className="text-gray-300">{"  "}</span>
+                  <span className="text-purple-400">if</span>
+                  <span className="text-gray-300"> (agent.</span>
+                  <span className="text-white">trustScore</span>
+                  <span className="text-gray-300"> {"<"} </span>
+                  <span className="text-orange-300">80</span>
+                  <span className="text-gray-300">) {"{"}</span>
+                  {"\n"}
+                  <span className="text-gray-300">{"    "}</span>
+                  <span className="text-purple-400">throw</span>
+                  <span className="text-gray-300"> </span>
+                  <span className="text-purple-400">new</span>
+                  <span className="text-gray-300"> </span>
+                  <span className="text-cyan-300">Error</span>
+                  <span className="text-gray-300">(</span>
+                  <span className="text-emerald-300">"Low trust"</span>
+                  <span className="text-gray-300">);</span>
+                  {"\n"}
+                  <span className="text-gray-300">{"  }"}</span>
+                  {"\n\n"}
+                  <span className="text-gray-300">{"  "}</span>
+                  <span className="text-purple-400">return</span>
+                  <span className="text-gray-300"> agent;</span>
+                  {"\n"}
+                  <span className="text-gray-300">{"}"}</span>
+                </code>
+              </pre>
             </div>
-            <pre className="overflow-x-auto text-sm leading-relaxed">
-              <code>
-                <span className="text-purple-400">import</span>
-                <span className="text-gray-300">{" { "}</span>
-                <span className="text-cyan-300">AgentPass</span>
-                <span className="text-gray-300">{" } "}</span>
-                <span className="text-purple-400">from</span>
-                <span className="text-emerald-300">
-                  {" '@agentpass/sdk'"}
-                </span>
-                <span className="text-gray-500">;</span>
-                {"\n\n"}
-                <span className="text-purple-400">const</span>
-                <span className="text-gray-300"> ap </span>
-                <span className="text-purple-400">=</span>
-                <span className="text-purple-400"> new</span>
-                <span className="text-cyan-300"> AgentPass</span>
-                <span className="text-gray-300">{"({"}</span>
-                {"\n"}
-                <span className="text-gray-300">{"  "}</span>
-                <span className="text-white">serviceId</span>
-                <span className="text-gray-300">: </span>
-                <span className="text-emerald-300">"your-service"</span>
-                <span className="text-gray-300">,</span>
-                {"\n"}
-                <span className="text-gray-300">{"  "}</span>
-                <span className="text-white">apiUrl</span>
-                <span className="text-gray-300">: </span>
-                <span className="text-emerald-300">
-                  {"'https://api.agentpass.space'"}
-                </span>
-                {"\n"}
-                <span className="text-gray-300">{"});"}</span>
-                {"\n\n"}
-                <span className="text-gray-500">
-                  {"// Verify agent identity"}
-                </span>
-                {"\n"}
-                <span className="text-purple-400">export</span>
-                <span className="text-gray-300"> </span>
-                <span className="text-purple-400">async</span>
-                <span className="text-gray-300"> </span>
-                <span className="text-purple-400">function</span>
-                <span className="text-gray-300"> </span>
-                <span className="text-yellow-300">authMiddleware</span>
-                <span className="text-gray-300">(req) {"{"}</span>
-                {"\n"}
-                <span className="text-gray-300">{"  "}</span>
-                <span className="text-purple-400">const</span>
-                <span className="text-gray-300"> agent </span>
-                <span className="text-purple-400">=</span>
-                <span className="text-purple-400"> await</span>
-                <span className="text-gray-300"> ap.</span>
-                <span className="text-yellow-300">verify</span>
-                <span className="text-gray-300">(req);</span>
-                {"\n\n"}
-                <span className="text-gray-300">{"  "}</span>
-                <span className="text-gray-500">
-                  {"// Check trust score"}
-                </span>
-                {"\n"}
-                <span className="text-gray-300">{"  "}</span>
-                <span className="text-purple-400">if</span>
-                <span className="text-gray-300"> (agent.</span>
-                <span className="text-white">trustScore</span>
-                <span className="text-gray-300"> {"<"} </span>
-                <span className="text-orange-300">80</span>
-                <span className="text-gray-300">) {"{"}</span>
-                {"\n"}
-                <span className="text-gray-300">{"    "}</span>
-                <span className="text-purple-400">throw</span>
-                <span className="text-gray-300"> </span>
-                <span className="text-purple-400">new</span>
-                <span className="text-gray-300"> </span>
-                <span className="text-cyan-300">Error</span>
-                <span className="text-gray-300">(</span>
-                <span className="text-emerald-300">"Low trust"</span>
-                <span className="text-gray-300">);</span>
-                {"\n"}
-                <span className="text-gray-300">{"  }"}</span>
-                {"\n\n"}
-                <span className="text-gray-300">{"  "}</span>
-                <span className="text-purple-400">return</span>
-                <span className="text-gray-300"> agent;</span>
-                {"\n"}
-                <span className="text-gray-300">{"}"}</span>
-              </code>
-            </pre>
+
+            {/* Protected route */}
+            <div className="rounded-xl border border-gray-700 bg-gray-800/80 backdrop-blur p-6 shadow-xl">
+              <div className="mb-4 flex items-center gap-2">
+                <div className="h-3 w-3 rounded-full bg-red-500/60" />
+                <div className="h-3 w-3 rounded-full bg-yellow-500/60" />
+                <div className="h-3 w-3 rounded-full bg-green-500/60" />
+                <span className="ml-2 text-xs text-gray-500">routes/profile.ts</span>
+              </div>
+              <pre className="overflow-x-auto text-sm leading-relaxed">
+                <code>
+                  <span className="text-gray-500">{"// Protected route — agent must be authenticated"}</span>
+                  {"\n"}
+                  <span className="text-gray-300">app.</span>
+                  <span className="text-yellow-300">get</span>
+                  <span className="text-gray-300">(</span>
+                  <span className="text-emerald-300">'/api/profile'</span>
+                  <span className="text-gray-300">, </span>
+                  <span className="text-purple-400">async</span>
+                  <span className="text-gray-300"> (c) </span>
+                  <span className="text-purple-400">{"=>"}</span>
+                  <span className="text-gray-300">{" {"}</span>
+                  {"\n"}
+                  <span className="text-gray-300">{"  "}</span>
+                  <span className="text-purple-400">const</span>
+                  <span className="text-gray-300"> token </span>
+                  <span className="text-purple-400">=</span>
+                  <span className="text-gray-300"> c.req.</span>
+                  <span className="text-yellow-300">header</span>
+                  <span className="text-gray-300">(</span>
+                  <span className="text-emerald-300">'Authorization'</span>
+                  <span className="text-gray-300">);</span>
+                  {"\n"}
+                  <span className="text-gray-300">{"  "}</span>
+                  <span className="text-purple-400">const</span>
+                  <span className="text-gray-300"> agent </span>
+                  <span className="text-purple-400">=</span>
+                  <span className="text-purple-400"> await</span>
+                  <span className="text-gray-300"> ap.</span>
+                  <span className="text-yellow-300">getSession</span>
+                  <span className="text-gray-300">(token);</span>
+                  {"\n\n"}
+                  <span className="text-gray-300">{"  "}</span>
+                  <span className="text-gray-500">{"// You know exactly which agent is calling"}</span>
+                  {"\n"}
+                  <span className="text-gray-300">{"  "}</span>
+                  <span className="text-purple-400">return</span>
+                  <span className="text-gray-300"> c.</span>
+                  <span className="text-yellow-300">json</span>
+                  <span className="text-gray-300">{"({"}</span>
+                  {"\n"}
+                  <span className="text-gray-300">{"    "}</span>
+                  <span className="text-white">passport_id</span>
+                  <span className="text-gray-300">: agent.</span>
+                  <span className="text-white">passportId</span>
+                  <span className="text-gray-300">,</span>
+                  {"\n"}
+                  <span className="text-gray-300">{"    "}</span>
+                  <span className="text-white">name</span>
+                  <span className="text-gray-300">: agent.</span>
+                  <span className="text-white">name</span>
+                  <span className="text-gray-300">,</span>
+                  {"\n"}
+                  <span className="text-gray-300">{"    "}</span>
+                  <span className="text-white">trust</span>
+                  <span className="text-gray-300">: agent.</span>
+                  <span className="text-white">trustScore</span>
+                  {"\n"}
+                  <span className="text-gray-300">{"  })"}</span>
+                  {"\n"}
+                  <span className="text-gray-300">{"})"}</span>
+                </code>
+              </pre>
+            </div>
           </div>
         </div>
       </div>
