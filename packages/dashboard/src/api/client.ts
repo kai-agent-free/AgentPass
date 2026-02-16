@@ -118,6 +118,8 @@ class ApiClient {
 
   constructor(baseUrl: string = API_BASE_URL) {
     this.baseUrl = baseUrl;
+    // Restore token from localStorage immediately so API calls work before React useEffect runs
+    this.token = localStorage.getItem("agentpass_token");
   }
 
   /**
