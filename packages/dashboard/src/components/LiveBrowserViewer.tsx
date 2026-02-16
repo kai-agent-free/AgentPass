@@ -6,60 +6,229 @@ interface LiveBrowserViewerProps {
   onSessionClosed?: () => void;
 }
 
+type ConnectionMode = "ws" | "http" | "connecting";
+
 export default function LiveBrowserViewer({
   sessionId,
   onSessionClosed,
 }: LiveBrowserViewerProps) {
   const [session, setSession] = useState<BrowserSession | null>(null);
   const [connected, setConnected] = useState(false);
+  const [connectionMode, setConnectionMode] = useState<ConnectionMode>("connecting");
   const [error, setError] = useState<string | null>(null);
   const [lastUpdate, setLastUpdate] = useState<number>(0);
   const [typingText, setTypingText] = useState("");
   const imgRef = useRef<HTMLImageElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
+  const wsRef = useRef<WebSocket | null>(null);
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const prevBlobUrlRef = useRef<string | null>(null);
+  const reconnectTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  // Poll for session updates
+  // Fetch initial session metadata via HTTP
   useEffect(() => {
     let mounted = true;
 
-    const poll = async () => {
+    async function fetchSession() {
       try {
         const data = await apiClient.getBrowserSession(sessionId);
         if (!mounted) return;
-
         setSession(data);
-        setConnected(true);
-        setError(null);
-        setLastUpdate(Date.now());
 
         if (data.closed_at) {
           onSessionClosed?.();
         }
       } catch (err) {
         if (!mounted) return;
-        setConnected(false);
-        setError(err instanceof Error ? err.message : "Connection lost");
+        setError(err instanceof Error ? err.message : "Failed to load session");
       }
-    };
+    }
 
-    // Initial fetch
-    poll();
+    fetchSession();
 
-    // Poll every 500ms
-    pollRef.current = setInterval(poll, 500);
+    return () => { mounted = false; };
+  }, [sessionId, onSessionClosed]);
+
+  // WebSocket connection with HTTP fallback
+  useEffect(() => {
+    let mounted = true;
+
+    function connectWebSocket() {
+      const token = apiClient.getToken();
+      if (!token) {
+        // No token — can't connect via WS, fall back to HTTP
+        startHttpPolling();
+        return;
+      }
+
+      const baseUrl = apiClient.getBaseUrl();
+      const wsBase = baseUrl
+        .replace(/^http:\/\//, "ws://")
+        .replace(/^https:\/\//, "wss://");
+      const wsUrl = `${wsBase}/browser-sessions/${encodeURIComponent(sessionId)}/stream?token=${encodeURIComponent(token)}`;
+
+      setConnectionMode("connecting");
+
+      const ws = new WebSocket(wsUrl);
+      ws.binaryType = "arraybuffer";
+      wsRef.current = ws;
+
+      ws.onopen = () => {
+        if (!mounted) { ws.close(); return; }
+
+        // Send identify message
+        ws.send(JSON.stringify({ type: "identify", role: "dashboard" }));
+        setConnected(true);
+        setConnectionMode("ws");
+        setError(null);
+      };
+
+      ws.onmessage = (evt) => {
+        if (!mounted) return;
+
+        // Binary frame: JPEG screenshot
+        if (evt.data instanceof ArrayBuffer) {
+          const blob = new Blob([evt.data], { type: "image/jpeg" });
+          const url = URL.createObjectURL(blob);
+
+          // Revoke previous blob URL to prevent memory leak
+          if (prevBlobUrlRef.current) {
+            URL.revokeObjectURL(prevBlobUrlRef.current);
+          }
+          prevBlobUrlRef.current = url;
+
+          // Update img src directly for minimal latency
+          if (imgRef.current) {
+            imgRef.current.src = url;
+          }
+
+          setConnected(true);
+          setLastUpdate(Date.now());
+          return;
+        }
+
+        // Text frame: JSON metadata
+        if (typeof evt.data === "string") {
+          try {
+            const msg = JSON.parse(evt.data);
+            if (msg.type === "metadata") {
+              setSession((prev) =>
+                prev
+                  ? {
+                      ...prev,
+                      page_url: msg.page_url ?? prev.page_url,
+                      viewport_w: msg.viewport_w ?? prev.viewport_w,
+                      viewport_h: msg.viewport_h ?? prev.viewport_h,
+                    }
+                  : prev,
+              );
+            }
+          } catch {
+            // Invalid JSON — ignore
+          }
+        }
+      };
+
+      ws.onclose = () => {
+        if (!mounted) return;
+
+        wsRef.current = null;
+        setConnected(false);
+
+        // Auto-reconnect after 2s
+        reconnectTimeoutRef.current = setTimeout(() => {
+          if (mounted) connectWebSocket();
+        }, 2000);
+      };
+
+      ws.onerror = () => {
+        // Error is followed by close, which handles reconnection.
+        // If this is the first connection attempt and it fails, fall back to HTTP.
+        if (connectionMode === "connecting") {
+          ws.close();
+          if (mounted) startHttpPolling();
+        }
+      };
+    }
+
+    function startHttpPolling() {
+      if (!mounted) return;
+
+      setConnectionMode("http");
+
+      pollRef.current = setInterval(async () => {
+        try {
+          const data = await apiClient.getBrowserSession(sessionId);
+          if (!mounted) return;
+
+          setSession(data);
+          setConnected(true);
+          setError(null);
+          setLastUpdate(Date.now());
+
+          if (data.closed_at) {
+            onSessionClosed?.();
+          }
+        } catch (err) {
+          if (!mounted) return;
+          setConnected(false);
+          setError(err instanceof Error ? err.message : "Connection lost");
+        }
+      }, 500);
+    }
+
+    connectWebSocket();
 
     return () => {
       mounted = false;
+
+      if (wsRef.current) {
+        wsRef.current.close();
+        wsRef.current = null;
+      }
+
       if (pollRef.current) {
         clearInterval(pollRef.current);
+        pollRef.current = null;
+      }
+
+      if (reconnectTimeoutRef.current) {
+        clearTimeout(reconnectTimeoutRef.current);
+        reconnectTimeoutRef.current = null;
+      }
+
+      // Clean up blob URL
+      if (prevBlobUrlRef.current) {
+        URL.revokeObjectURL(prevBlobUrlRef.current);
+        prevBlobUrlRef.current = null;
       }
     };
   }, [sessionId, onSessionClosed]);
 
+  // Send command via WebSocket or HTTP fallback
+  const sendCommand = useCallback(
+    async (type: string, payload: Record<string, unknown>) => {
+      // Prefer WebSocket if connected
+      if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
+        wsRef.current.send(
+          JSON.stringify({ type: "command", command: type, payload }),
+        );
+        return;
+      }
+
+      // HTTP fallback
+      try {
+        await apiClient.sendBrowserCommand(sessionId, type, payload);
+      } catch {
+        // Non-critical
+      }
+    },
+    [sessionId],
+  );
+
   // Handle click on the screenshot
   const handleClick = useCallback(
-    async (e: React.MouseEvent<HTMLImageElement>) => {
+    (e: React.MouseEvent<HTMLImageElement>) => {
       if (!session || !imgRef.current) return;
 
       const rect = imgRef.current.getBoundingClientRect();
@@ -69,37 +238,26 @@ export default function LiveBrowserViewer({
       const x = Math.round((e.clientX - rect.left) * scaleX);
       const y = Math.round((e.clientY - rect.top) * scaleY);
 
-      try {
-        await apiClient.sendBrowserCommand(sessionId, "click", { x, y });
-      } catch {
-        // Non-critical -- next poll will show state
-      }
+      sendCommand("click", { x, y });
     },
-    [session, sessionId],
+    [session, sendCommand],
   );
 
   // Handle text submission
   const handleTypeSubmit = useCallback(
-    async (e: React.FormEvent) => {
+    (e: React.FormEvent) => {
       e.preventDefault();
       if (!typingText.trim()) return;
 
-      try {
-        await apiClient.sendBrowserCommand(sessionId, "type", {
-          text: typingText,
-        });
-        setTypingText("");
-      } catch {
-        // Non-critical
-      }
+      sendCommand("type", { text: typingText });
+      setTypingText("");
     },
-    [sessionId, typingText],
+    [sendCommand, typingText],
   );
 
   // Handle keypress (Enter, Tab, Escape, etc.)
   const handleKeyDown = useCallback(
-    async (e: React.KeyboardEvent) => {
-      // Only intercept special keys when the container is focused
+    (e: React.KeyboardEvent) => {
       if (
         e.key === "Enter" ||
         e.key === "Tab" ||
@@ -107,16 +265,10 @@ export default function LiveBrowserViewer({
         e.key === "Backspace"
       ) {
         e.preventDefault();
-        try {
-          await apiClient.sendBrowserCommand(sessionId, "keypress", {
-            key: e.key,
-          });
-        } catch {
-          // Non-critical
-        }
+        sendCommand("keypress", { key: e.key });
       }
     },
-    [sessionId],
+    [sendCommand],
   );
 
   // Freshness indicator
@@ -147,6 +299,12 @@ export default function LiveBrowserViewer({
     );
   }
 
+  // Determine the screenshot source:
+  // - In WS mode, imgRef.src is set directly from blob URLs
+  // - In HTTP mode, use session.screenshot from polling
+  const showDirectImg = connectionMode === "ws";
+  const httpScreenshot = connectionMode === "http" ? session?.screenshot : null;
+
   return (
     <div
       ref={containerRef}
@@ -163,7 +321,11 @@ export default function LiveBrowserViewer({
             }`}
           />
           <span className="text-xs text-gray-500">
-            {connected && isFresh ? "Live" : "Disconnected"}
+            {connected && isFresh
+              ? connectionMode === "ws"
+                ? "Live (WebSocket)"
+                : "Live"
+              : "Disconnected"}
           </span>
           {session?.page_url && (
             <span className="ml-2 max-w-xs truncate text-xs text-gray-400">
@@ -180,13 +342,17 @@ export default function LiveBrowserViewer({
 
       {/* Screenshot display */}
       <div className="overflow-hidden rounded-lg border border-gray-200 bg-gray-900">
-        {session?.screenshot ? (
+        {showDirectImg || httpScreenshot ? (
           <img
             ref={imgRef}
-            src={session.screenshot}
+            src={httpScreenshot ?? undefined}
             alt="Live browser view"
             className="block w-full cursor-crosshair"
-            style={{ aspectRatio: `${session.viewport_w} / ${session.viewport_h}` }}
+            style={{
+              aspectRatio: session
+                ? `${session.viewport_w} / ${session.viewport_h}`
+                : "1280 / 720",
+            }}
             onClick={handleClick}
             draggable={false}
           />

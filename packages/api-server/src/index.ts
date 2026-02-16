@@ -8,6 +8,7 @@
 import { Hono } from "hono";
 import { cors } from "hono/cors";
 import { serve } from "@hono/node-server";
+import { createNodeWebSocket } from "@hono/node-ws";
 import type { Sql } from "./db/schema.js";
 import { initDatabase } from "./db/schema.js";
 import { createAuthRouter } from "./routes/auth.js";
@@ -33,9 +34,16 @@ const DATABASE_URL = process.env.DATABASE_URL || "postgresql://localhost:5432/ag
  *
  * Accepts an optional database connection string for tests.
  */
-export async function createApp(connectionString: string = DATABASE_URL): Promise<{ app: Hono; db: Sql }> {
+export async function createApp(connectionString: string = DATABASE_URL): Promise<{
+  app: Hono;
+  db: Sql;
+  injectWebSocket: (server: ReturnType<typeof serve>) => void;
+}> {
   const db = await initDatabase(connectionString);
   const app = new Hono();
+
+  // WebSocket support for real-time browser session streaming
+  const { injectWebSocket, upgradeWebSocket } = createNodeWebSocket({ app });
 
   // --- Global middleware ---
   // Request logging (must be first to capture all requests)
@@ -81,7 +89,7 @@ export async function createApp(connectionString: string = DATABASE_URL): Promis
   const apiKeysRouter = createApiKeysRouter(db);
   const approvalsRouter = createApprovalsRouter(db);
   const escalationsRouter = createEscalationsRouter(db);
-  const browserSessionsRouter = createBrowserSessionsRouter(db);
+  const browserSessionsRouter = createBrowserSessionsRouter(db, upgradeWebSocket);
   const webhookRouter = createWebhookRouter(db);
   const telegramRouter = createTelegramRouter();
   const healthRouter = createHealthRouter(db);
@@ -128,20 +136,22 @@ export async function createApp(connectionString: string = DATABASE_URL): Promis
     );
   });
 
-  return { app, db };
+  return { app, db, injectWebSocket };
 }
 
 // --- Start server when run directly ---
 const isMainModule = process.argv[1]?.endsWith("index.ts") || process.argv[1]?.endsWith("index.js");
 
 if (isMainModule) {
-  createApp().then(({ app }) => {
-    serve(
+  createApp().then(({ app, injectWebSocket }) => {
+    const server = serve(
       { fetch: app.fetch, port: PORT },
       (info) => {
         console.log(`AgentPass API Server running on http://localhost:${info.port}`);
         console.log(`Discovery: http://localhost:${info.port}/.well-known/agentpass.json`);
       },
     );
+
+    injectWebSocket(server);
   });
 }

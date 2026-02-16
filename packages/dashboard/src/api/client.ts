@@ -126,6 +126,20 @@ class ApiClient {
   }
 
   /**
+   * Get the current authentication token (for WebSocket auth).
+   */
+  getToken(): string | null {
+    return this.token;
+  }
+
+  /**
+   * Get the API base URL (for constructing WebSocket URLs).
+   */
+  getBaseUrl(): string {
+    return this.baseUrl;
+  }
+
+  /**
    * Set callback to be called on 401 Unauthorized response.
    */
   setOnUnauthorized(callback: () => void) {

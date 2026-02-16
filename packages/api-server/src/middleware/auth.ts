@@ -116,7 +116,7 @@ interface OwnerRow {
  *
  * @returns OwnerPayload if valid, null otherwise
  */
-async function authenticateApiKey(
+export async function authenticateApiKey(
   db: Sql,
   token: string,
 ): Promise<OwnerPayload | null> {

@@ -288,6 +288,17 @@ export class ApiClient {
   }
 
   /**
+   * Get the WebSocket URL for browser session streaming.
+   * Converts the HTTP API URL to a WebSocket URL.
+   */
+  getWsUrl(sessionId: string): string {
+    const wsBase = this.apiUrl
+      .replace(/^http:\/\//, "ws://")
+      .replace(/^https:\/\//, "wss://");
+    return `${wsBase}/browser-sessions/${encodeURIComponent(sessionId)}/stream?token=${encodeURIComponent(this.apiKey)}`;
+  }
+
+  /**
    * Close a browser session.
    */
   async closeBrowserSession(sessionId: string): Promise<void> {

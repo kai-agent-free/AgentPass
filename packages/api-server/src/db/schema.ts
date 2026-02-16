@@ -171,9 +171,23 @@ export async function initDatabase(connectionString?: string): Promise<Sql> {
       page_url      TEXT NOT NULL DEFAULT '',
       viewport_w    INTEGER NOT NULL DEFAULT 1280,
       viewport_h    INTEGER NOT NULL DEFAULT 720,
+      stream_status TEXT NOT NULL DEFAULT 'none',
       updated_at    TIMESTAMPTZ NOT NULL DEFAULT NOW(),
       closed_at     TIMESTAMPTZ
     )
+  `;
+
+  // Migration: add stream_status column to existing browser_sessions tables
+  await sql`
+    DO $$
+    BEGIN
+      IF NOT EXISTS (
+        SELECT 1 FROM information_schema.columns
+        WHERE table_name = 'browser_sessions' AND column_name = 'stream_status'
+      ) THEN
+        ALTER TABLE browser_sessions ADD COLUMN stream_status TEXT NOT NULL DEFAULT 'none';
+      END IF;
+    END $$
   `;
 
   await sql`CREATE INDEX IF NOT EXISTS idx_browser_sessions_escalation_id ON browser_sessions(escalation_id)`;

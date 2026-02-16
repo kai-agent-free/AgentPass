@@ -2,13 +2,15 @@
  * Browser session routes for live CAPTCHA viewing.
  *
  * MCP pushes screenshots and polls commands; Dashboard polls screenshots and sends commands.
+ * WebSocket streaming provides real-time frame delivery (CDP screencast → Dashboard).
  *
  * GET    /                       -- list sessions for an escalation (?escalation_id=...)
  * POST   /                       -- create a new browser session for an escalation
- * PUT    /:id/screenshot         -- update screenshot (MCP pushes)
- * GET    /:id                    -- get session with latest screenshot (Dashboard polls)
- * POST   /:id/command            -- send input command (Dashboard sends clicks/types)
- * GET    /:id/commands           -- get commands by status (MCP polls)
+ * PUT    /:id/screenshot         -- update screenshot (MCP pushes, fallback)
+ * GET    /:id                    -- get session with latest screenshot (Dashboard polls, fallback)
+ * GET    /:id/stream             -- WebSocket upgrade for real-time streaming
+ * POST   /:id/command            -- send input command (Dashboard sends clicks/types, fallback)
+ * GET    /:id/commands           -- get commands by status (MCP polls, fallback)
  * PATCH  /:id/commands/:cmdId    -- mark command as executed (MCP confirms)
  * POST   /:id/close              -- close the session
  */
@@ -18,7 +20,9 @@ import { Hono } from "hono";
 import { z } from "zod";
 import type { Sql } from "../db/schema.js";
 import { zValidator, getValidatedBody } from "../middleware/validation.js";
-import { requireAuth, type OwnerPayload, type AuthVariables } from "../middleware/auth.js";
+import { requireAuth, verifyJwt, authenticateApiKey, type OwnerPayload, type AuthVariables } from "../middleware/auth.js";
+import { wsRelayManager, type WsRole } from "../services/ws-relay.js";
+import type { UpgradeWebSocket } from "hono/ws";
 
 // --- Zod schemas ---
 
@@ -64,6 +68,7 @@ interface BrowserSessionRow {
   page_url: string;
   viewport_w: number;
   viewport_h: number;
+  stream_status: string;
   updated_at: Date;
   closed_at: Date | null;
 }
@@ -85,6 +90,7 @@ function mapSessionRow(row: BrowserSessionRow) {
     page_url: row.page_url,
     viewport_w: row.viewport_w,
     viewport_h: row.viewport_h,
+    stream_status: row.stream_status,
     updated_at: row.updated_at.toISOString(),
     closed_at: row.closed_at?.toISOString() ?? null,
   };
@@ -103,8 +109,12 @@ function mapCommandRow(row: BrowserCommandRow) {
 
 /**
  * Create the browser sessions router bound to the given database instance.
+ * Accepts an optional upgradeWebSocket function for real-time streaming.
  */
-export function createBrowserSessionsRouter(db: Sql): Hono<{ Variables: AuthVariables }> {
+export function createBrowserSessionsRouter(
+  db: Sql,
+  upgradeWebSocket?: UpgradeWebSocket,
+): Hono<{ Variables: AuthVariables }> {
   const router = new Hono<{ Variables: AuthVariables }>();
 
   // --- Ownership helpers ---
@@ -382,6 +392,101 @@ export function createBrowserSessionsRouter(db: Sql): Hono<{ Variables: AuthVari
     return c.json({ updated: true });
   });
 
+  // GET /:id/stream -- WebSocket upgrade for real-time streaming
+  if (upgradeWebSocket) {
+    router.get(
+      "/:id/stream",
+      upgradeWebSocket((c) => {
+        const sessionId = c.req.param("id");
+        const token = c.req.query("token");
+        let authenticated = false;
+        let myRole: WsRole | null = null;
+
+        return {
+          onOpen: async (_evt, ws) => {
+            // Authenticate via query param token
+            if (!token) {
+              ws.close(4001, "Authentication required");
+              return;
+            }
+
+            try {
+              // Try API key auth first, then JWT
+              const apiKeyPayload = await authenticateApiKey(db, token);
+              if (apiKeyPayload) {
+                authenticated = true;
+              } else {
+                await verifyJwt(token);
+                authenticated = true;
+              }
+            } catch {
+              ws.close(4001, "Invalid token");
+              return;
+            }
+          },
+
+          onMessage: (evt, ws) => {
+            if (!authenticated) {
+              ws.close(4001, "Not authenticated");
+              return;
+            }
+
+            const data = evt.data;
+
+            // Binary frames: forward as-is (JPEG screenshots from MCP → Dashboard)
+            if (data instanceof ArrayBuffer || data instanceof Uint8Array) {
+              if (myRole) {
+                wsRelayManager.forward(sessionId, myRole, data);
+              }
+              return;
+            }
+
+            // Text frames: JSON protocol messages
+            if (typeof data === "string") {
+              try {
+                const msg = JSON.parse(data);
+
+                // Handle identify message (must be first message)
+                if (msg.type === "identify" && (msg.role === "mcp" || msg.role === "dashboard")) {
+                  const role: WsRole = msg.role;
+                  myRole = role;
+                  wsRelayManager.register(sessionId, role, ws);
+
+                  // Update stream_status in DB (fire-and-forget)
+                  const status = wsRelayManager.getStatus(sessionId);
+                  db`UPDATE browser_sessions SET stream_status = ${status} WHERE id = ${sessionId}`.catch(() => {});
+                  return;
+                }
+
+                // Forward all other text messages to the other side
+                if (myRole) {
+                  wsRelayManager.forward(sessionId, myRole, data);
+                }
+              } catch {
+                // Invalid JSON — ignore
+              }
+            }
+          },
+
+          onClose: () => {
+            if (!myRole) return;
+
+            wsRelayManager.unregister(sessionId, myRole);
+
+            // Update stream_status in DB (fire-and-forget)
+            const status = wsRelayManager.getStatus(sessionId);
+            db`UPDATE browser_sessions SET stream_status = ${status} WHERE id = ${sessionId}`.catch(() => {});
+          },
+
+          onError: () => {
+            if (!myRole) return;
+            wsRelayManager.unregister(sessionId, myRole);
+          },
+        };
+      }),
+    );
+  }
+
   // POST /:id/close -- close the session
   router.post("/:id/close", requireAuth(db), async (c) => {
     const owner = c.get("owner") as OwnerPayload;
@@ -404,10 +509,13 @@ export function createBrowserSessionsRouter(db: Sql): Hono<{ Variables: AuthVari
 
     const result = await db<{ closed_at: Date }[]>`
       UPDATE browser_sessions
-      SET closed_at = NOW()
+      SET closed_at = NOW(), stream_status = 'disconnected'
       WHERE id = ${sessionId}
       RETURNING closed_at
     `;
+
+    // Clean up any active WebSocket connections
+    wsRelayManager.cleanup(sessionId);
 
     return c.json({
       closed: true,
