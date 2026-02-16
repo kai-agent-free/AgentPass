@@ -210,7 +210,11 @@ export default function SolveCaptchaPage() {
               ) : escalation.screenshot ? (
                 <div className="overflow-hidden rounded-lg border border-gray-200 bg-gray-50">
                   <img
-                    src={escalation.screenshot}
+                    src={
+                      escalation.screenshot.startsWith("data:")
+                        ? escalation.screenshot
+                        : `data:image/png;base64,${escalation.screenshot}`
+                    }
                     alt="CAPTCHA screenshot requiring manual resolution"
                     className="mx-auto block max-w-full"
                   />

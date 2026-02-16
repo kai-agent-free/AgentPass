@@ -168,6 +168,20 @@ async function buildResponse(
         screenshotBuf,
       );
       escalationId = result.escalation_id;
+
+      // Start live browser session so owner can interact via dashboard
+      const browserSessionService =
+        captchaService.getBrowserSessionService();
+      if (browserSessionService && escalationId) {
+        try {
+          await browserSessionService.startSession(escalationId, page);
+        } catch (err) {
+          console.warn(
+            "[Browser] Failed to start live session:",
+            err,
+          );
+        }
+      }
     } catch {
       // Escalation failure is non-critical — still return the screenshot
     }
