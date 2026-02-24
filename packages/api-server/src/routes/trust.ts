@@ -42,8 +42,12 @@ interface PassportRow {
  * Parse the metadata JSONB column, returning a typed object with
  * known trust-related fields.
  */
-function parseMetadata(raw: Record<string, unknown> | null): Record<string, unknown> {
-  return raw ?? {};
+function parseMetadata(raw: Record<string, unknown> | string | null): Record<string, unknown> {
+  if (raw === null || raw === undefined) return {};
+  if (typeof raw === "string") {
+    try { return JSON.parse(raw); } catch { return {}; }
+  }
+  return raw;
 }
 
 /**
