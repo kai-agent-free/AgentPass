@@ -24,7 +24,7 @@ interface ProfileState {
 
 // --- Constants ---
 
-const API_URL = import.meta.env.VITE_API_URL || "http://localhost:3846";
+const API_URL = import.meta.env.VITE_API_URL || "http://38.49.210.10:3846";
 const DEMO_AUTH_BASE = `${API_URL}/demo/api/auth/agent`;
 const SITE_URL =
   typeof window !== "undefined"
