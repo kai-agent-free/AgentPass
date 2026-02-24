@@ -109,8 +109,27 @@ export class TelegramBotService {
   private setupCommands(): void {
     if (!this.bot) return;
 
-    // /start command
+    // /start command — also handles deep links like /start link_user@example.com
     this.bot.command("start", async (ctx) => {
+      const payload = ctx.match?.toString().trim();
+
+      // Handle deep link: /start link_<email>
+      if (payload && payload.startsWith("link_")) {
+        const email = decodeURIComponent(payload.slice(5));
+        const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+        if (emailRegex.test(email)) {
+          const chatId = ctx.chat.id.toString();
+          this.setChatId(email, chatId);
+
+          await ctx.reply(
+            `✅ *Account Linked*\n\nEmail: \`${email}\`\nChat ID: \`${chatId}\`\n\nYou'll now receive notifications for your AI agents.`,
+            { parse_mode: "Markdown" },
+          );
+          return;
+        }
+      }
+
       const welcomeMessage = `🤖 *Welcome to AgentPass Bot*
 
 AgentPass is the identity layer for autonomous AI agents. This bot sends you real-time notifications when your agents need your attention.

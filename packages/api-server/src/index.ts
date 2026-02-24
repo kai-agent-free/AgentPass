@@ -96,7 +96,7 @@ export async function createApp(connectionString: string = DATABASE_URL): Promis
   const webhookRouter = createWebhookRouter(db);
   const messagesRouter = createMessagesRouter(db);
   const settingsRouter = createSettingsRouter(db);
-  const telegramRouter = createTelegramRouter();
+  const telegramRouter = createTelegramRouter(db);
   const healthRouter = createHealthRouter(db);
 
   app.route("/", healthRouter);
