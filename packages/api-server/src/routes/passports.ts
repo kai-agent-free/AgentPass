@@ -39,6 +39,10 @@ const RegisterPassportSchema = z.object({
     .max(256, "Description must be 256 characters or fewer")
     .optional()
     .default(""),
+  metadata: z
+    .record(z.unknown())
+    .optional()
+    .default({}),
 });
 
 type RegisterPassportBody = z.infer<typeof RegisterPassportSchema>;
@@ -126,6 +130,7 @@ export function createPassportsRouter(db: Sql): Hono<{ Variables: AuthVariables 
     }
 
     const defaultMetadata = JSON.stringify({
+      ...body.metadata,
       owner_verified: false,
       payment_method: false,
       abuse_reports: 0,
