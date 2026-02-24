@@ -146,13 +146,13 @@ describe('fillForm', () => {
 // navigate
 // ---------------------------------------------------------------------------
 describe('navigate', () => {
-  it('calls page.goto with networkidle and default timeout', async () => {
+  it('calls page.goto with domcontentloaded and default timeout', async () => {
     const page = createMockPage();
 
     await navigate(page, 'https://example.com');
 
     expect(page.goto).toHaveBeenCalledWith('https://example.com', {
-      waitUntil: 'networkidle',
+      waitUntil: 'domcontentloaded',
       timeout: 30_000,
     });
   });
@@ -163,7 +163,7 @@ describe('navigate', () => {
     await navigate(page, 'https://example.com', 60_000);
 
     expect(page.goto).toHaveBeenCalledWith('https://example.com', {
-      waitUntil: 'networkidle',
+      waitUntil: 'domcontentloaded',
       timeout: 60_000,
     });
   });
