@@ -206,5 +206,21 @@ export async function initDatabase(connectionString?: string): Promise<Sql> {
 
   await sql`CREATE INDEX IF NOT EXISTS idx_browser_commands_session_id ON browser_commands(session_id, status)`;
 
+  // Create messages table (agent-to-agent messaging)
+  await sql`
+    CREATE TABLE IF NOT EXISTS messages (
+      id                 TEXT PRIMARY KEY,
+      from_passport_id   TEXT NOT NULL REFERENCES passports(id),
+      to_passport_id     TEXT NOT NULL REFERENCES passports(id),
+      subject            TEXT NOT NULL DEFAULT '',
+      body               TEXT NOT NULL,
+      read               BOOLEAN NOT NULL DEFAULT false,
+      created_at         TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    )
+  `;
+
+  await sql`CREATE INDEX IF NOT EXISTS idx_messages_to_passport ON messages(to_passport_id, created_at DESC)`;
+  await sql`CREATE INDEX IF NOT EXISTS idx_messages_from_passport ON messages(from_passport_id, created_at DESC)`;
+
   return sql;
 }
