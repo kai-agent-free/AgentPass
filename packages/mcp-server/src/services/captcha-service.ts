@@ -34,6 +34,7 @@ export interface EscalationRecord {
 
 export interface EscalateResult {
   escalation_id: string;
+  browser_session_id?: string;
   status: "pending";
 }
 
@@ -57,12 +58,14 @@ export class CaptchaService {
    *
    * When an API client is available the escalation is also persisted on the
    * API server so the owner can resolve it through the Dashboard.
+   * A browser session is also created for live CAPTCHA viewing.
    */
   async escalate(
     passportId: string,
     agentName: string,
     captchaType: string,
     screenshotBuffer?: Buffer,
+    pageUrl?: string,
   ): Promise<EscalateResult> {
     const screenshotBase64 = screenshotBuffer
       ? screenshotBuffer.toString("base64")
@@ -74,6 +77,7 @@ export class CaptchaService {
 
     // Try to persist escalation via API first
     let escalationId: string;
+    let browserSessionId: string | undefined;
 
     if (this.apiClient) {
       try {
@@ -84,6 +88,27 @@ export class CaptchaService {
           screenshot: screenshotBase64,
         });
         escalationId = apiResult.escalation_id;
+
+        // Create a browser session for live CAPTCHA viewing
+        try {
+          const sessionResult = await this.apiClient.createBrowserSession({
+            escalation_id: escalationId,
+            page_url: pageUrl,
+          });
+          browserSessionId = sessionResult.session_id;
+
+          // Push the initial screenshot to the browser session
+          if (screenshotBase64) {
+            const screenshotDataUrl = `data:image/png;base64,${screenshotBase64}`;
+            await this.apiClient.updateBrowserScreenshot(
+              browserSessionId,
+              screenshotDataUrl,
+              pageUrl,
+            );
+          }
+        } catch (error) {
+          console.warn("[CaptchaService] Browser session creation failed:", error);
+        }
       } catch (error) {
         console.warn("[CaptchaService] API escalation failed, falling back to local:", error);
         escalationId = `esc_${crypto.randomBytes(12).toString("hex")}`;
@@ -125,7 +150,7 @@ export class CaptchaService {
 
     await this.webhookService.emit(event);
 
-    return { escalation_id: escalationId, status: "pending" };
+    return { escalation_id: escalationId, browser_session_id: browserSessionId, status: "pending" };
   }
 
   /**
@@ -201,6 +226,53 @@ export class CaptchaService {
     record.status = "resolved";
     record.resolved_at = new Date().toISOString();
     return true;
+  }
+
+  /**
+   * Poll for escalation resolution until resolved, timed out, or aborted.
+   *
+   * @param escalationId - The escalation to poll
+   * @param pollIntervalMs - Interval between polls (default: 3000ms)
+   * @param signal - Optional AbortSignal to cancel polling early
+   * @returns Resolution result
+   */
+  async waitForResolution(
+    escalationId: string,
+    pollIntervalMs: number = 3_000,
+    signal?: AbortSignal,
+  ): Promise<ResolutionResult> {
+    const deadline = Date.now() + this.timeoutMs;
+
+    while (Date.now() < deadline) {
+      if (signal?.aborted) {
+        return { resolved: false, timed_out: false };
+      }
+
+      const result = await this.checkResolution(escalationId);
+      if (result.resolved || result.timed_out) {
+        return result;
+      }
+
+      // Wait before next poll
+      await new Promise<void>((resolve, reject) => {
+        const timer = setTimeout(resolve, pollIntervalMs);
+        if (signal) {
+          const onAbort = () => {
+            clearTimeout(timer);
+            resolve();
+          };
+          signal.addEventListener("abort", onAbort, { once: true });
+        }
+      });
+    }
+
+    // Mark as timed out
+    const record = this.escalations.get(escalationId);
+    if (record && record.status === "pending") {
+      record.status = "timed_out";
+    }
+
+    return { resolved: false, timed_out: true };
   }
 
   /**
