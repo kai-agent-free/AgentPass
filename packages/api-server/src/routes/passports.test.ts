@@ -15,6 +15,9 @@ describe("Passport routes", () => {
     app = created.app;
     db = created.db;
 
+    // Clean up tables before each test
+    await db`TRUNCATE TABLE browser_commands, browser_sessions, escalations, approvals, api_keys, audit_log, passports, owners CASCADE`;
+
     // Register and login to get auth token
     const registerRes = await app.request("/auth/register", {
       method: "POST",
@@ -69,11 +72,8 @@ describe("Passport routes", () => {
       const res = await registerPassport();
       const data = await res.json();
 
-      const result = await db.execute({
-        sql: "SELECT * FROM passports WHERE id = ?",
-        args: [data.passport_id],
-      });
-      const row = result.rows[0] as unknown as Record<string, unknown>;
+      const result = await db`SELECT * FROM passports WHERE id = ${data.passport_id}`;
+      const row = result[0] as unknown as Record<string, unknown>;
       expect(row).toBeDefined();
       expect(row.name).toBe("test-agent");
       expect(row.status).toBe("active");
@@ -140,11 +140,8 @@ describe("Passport routes", () => {
       expect(res.status).toBe(201);
 
       const { passport_id } = await res.json();
-      const result = await db.execute({
-        sql: "SELECT owner_email FROM passports WHERE id = ?",
-        args: [passport_id],
-      });
-      const row = result.rows[0] as unknown as { owner_email: string };
+      const result = await db`SELECT owner_email FROM passports WHERE id = ${passport_id}`;
+      const row = result[0] as unknown as { owner_email: string };
       expect(row.owner_email).toBe(ownerEmail);
     });
   });
@@ -297,11 +294,8 @@ describe("Passport routes", () => {
       expect(data.revoked).toBe(true);
 
       // Verify in database
-      const result = await db.execute({
-        sql: "SELECT status FROM passports WHERE id = ?",
-        args: [passport_id],
-      });
-      const row = result.rows[0] as unknown as { status: string };
+      const result = await db`SELECT status FROM passports WHERE id = ${passport_id}`;
+      const row = result[0] as unknown as { status: string };
       expect(row.status).toBe("revoked");
     });
 

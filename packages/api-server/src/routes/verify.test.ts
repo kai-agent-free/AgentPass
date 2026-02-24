@@ -19,6 +19,9 @@ describe("Verify routes", () => {
     app = created.app;
     db = created.db;
 
+    // Clean up tables before each test
+    await db`TRUNCATE TABLE browser_commands, browser_sessions, escalations, approvals, api_keys, audit_log, passports, owners CASCADE`;
+
     // Register and login to get auth token
     const registerRes = await app.request("/auth/register", {
       method: "POST",

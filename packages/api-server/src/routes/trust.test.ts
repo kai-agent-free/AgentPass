@@ -13,6 +13,9 @@ describe("Trust routes", () => {
     app = created.app;
     db = created.db;
 
+    // Clean up tables before each test
+    await db`TRUNCATE TABLE browser_commands, browser_sessions, escalations, approvals, api_keys, audit_log, passports, owners CASCADE`;
+
     // Register and login to get auth token
     const registerRes = await app.request("/auth/register", {
       method: "POST",
@@ -87,10 +90,7 @@ describe("Trust routes", () => {
       const passportId = await registerPassport();
 
       // Manually set metadata to mark owner as verified
-      await db.execute({
-        sql: "UPDATE passports SET metadata = ? WHERE id = ?",
-        args: [JSON.stringify({ owner_verified: true }), passportId],
-      });
+      await db`UPDATE passports SET metadata = ${{ owner_verified: true }} WHERE id = ${passportId}`;
 
       const res = await app.request(`/passports/${passportId}/trust`, {
         headers: { Authorization: `Bearer ${authToken}` },
@@ -105,10 +105,7 @@ describe("Trust routes", () => {
     it("reflects payment_method from metadata", async () => {
       const passportId = await registerPassport();
 
-      await db.execute({
-        sql: "UPDATE passports SET metadata = ? WHERE id = ?",
-        args: [JSON.stringify({ owner_verified: true, payment_method: true }), passportId],
-      });
+      await db`UPDATE passports SET metadata = ${{ owner_verified: true, payment_method: true }} WHERE id = ${passportId}`;
 
       const res = await app.request(`/passports/${passportId}/trust`, {
         headers: { Authorization: `Bearer ${authToken}` },
@@ -149,10 +146,7 @@ describe("Trust routes", () => {
       const passportId = await registerPassport();
 
       // Set some base score via metadata
-      await db.execute({
-        sql: "UPDATE passports SET metadata = ? WHERE id = ?",
-        args: [JSON.stringify({ owner_verified: true, payment_method: true }), passportId],
-      });
+      await db`UPDATE passports SET metadata = ${{ owner_verified: true, payment_method: true }} WHERE id = ${passportId}`;
 
       // First report
       await app.request(`/passports/${passportId}/report-abuse`, {
@@ -192,11 +186,8 @@ describe("Trust routes", () => {
         body: JSON.stringify({ reason: "Automated credential stuffing" }),
       });
 
-      const result = await db.execute({
-        sql: "SELECT metadata FROM passports WHERE id = ?",
-        args: [passportId],
-      });
-      const row = result.rows[0] as unknown as { metadata: string };
+      const result = await db`SELECT metadata FROM passports WHERE id = ${passportId}`;
+      const row = result[0] as unknown as { metadata: string };
       const metadata = JSON.parse(row.metadata);
 
       expect(metadata.abuse_reports).toBe(1);
@@ -207,10 +198,7 @@ describe("Trust routes", () => {
       const passportId = await registerPassport();
 
       // Give passport some score first
-      await db.execute({
-        sql: "UPDATE passports SET metadata = ?, trust_score = 30 WHERE id = ?",
-        args: [JSON.stringify({ owner_verified: true }), passportId],
-      });
+      await db`UPDATE passports SET metadata = ${{ owner_verified: true }}, trust_score = 30 WHERE id = ${passportId}`;
 
       await app.request(`/passports/${passportId}/report-abuse`, {
         method: "POST",
@@ -221,11 +209,8 @@ describe("Trust routes", () => {
         body: JSON.stringify({ reason: "Abuse" }),
       });
 
-      const result = await db.execute({
-        sql: "SELECT trust_score FROM passports WHERE id = ?",
-        args: [passportId],
-      });
-      const row = result.rows[0] as unknown as { trust_score: number };
+      const result = await db`SELECT trust_score FROM passports WHERE id = ${passportId}`;
+      const row = result[0] as unknown as { trust_score: number };
       // 30 (verified) - 50 (1 report) = -20, clamped to 0
       expect(row.trust_score).toBe(0);
     });
@@ -268,10 +253,7 @@ describe("Trust routes", () => {
       const passportId = await registerPassport();
 
       // Give the passport a high base score
-      await db.execute({
-        sql: "UPDATE passports SET metadata = ? WHERE id = ?",
-        args: [JSON.stringify({ owner_verified: true, payment_method: true }), passportId],
-      });
+      await db`UPDATE passports SET metadata = ${{ owner_verified: true, payment_method: true }} WHERE id = ${passportId}`;
 
       const res = await app.request(`/passports/${passportId}/report-abuse`, {
         method: "POST",
