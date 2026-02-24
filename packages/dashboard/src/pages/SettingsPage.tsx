@@ -546,9 +546,9 @@ export default function SettingsPage() {
               </p>
               <p className="mt-1 text-sm text-gray-500">
                 Open Telegram and start a conversation with{" "}
-                <span className="font-mono text-indigo-600">
-                  @AgentPassBot
-                </span>
+                <a href="https://t.me/AgentPass_bot" target="_blank" rel="noopener noreferrer" className="font-mono text-indigo-600 hover:text-indigo-800 underline">
+                  @AgentPass_bot
+                </a>
               </p>
             </div>
 
