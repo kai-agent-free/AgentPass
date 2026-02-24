@@ -1,7 +1,7 @@
 import { useParams, Link, useNavigate } from "react-router-dom";
 import { useState } from "react";
 import StatusBadge from "../components/StatusBadge.js";
-import TrustScoreBar from "../components/TrustScoreBar.js";
+import TrustScoreCard from "../components/TrustScoreCard.js";
 import ConfirmDialog from "../components/ConfirmDialog.js";
 import { apiClient } from "../api/client.js";
 import { useApi } from "../hooks/useApi.js";
@@ -275,18 +275,7 @@ export default function AgentDetailPage() {
         {/* Right column */}
         <div className="space-y-6">
           {/* Trust Score */}
-          <div className="rounded-xl border border-gray-200 bg-white p-6 shadow-sm">
-            <h2 className="mb-4 text-lg font-semibold text-gray-900">
-              Trust Score
-            </h2>
-            <div className="mb-3 text-center">
-              <span className="text-4xl font-bold text-gray-900">
-                {passport.trust_score}
-              </span>
-              <span className="text-lg text-gray-400">/100</span>
-            </div>
-            <TrustScoreBar score={passport.trust_score} />
-          </div>
+          <TrustScoreCard passportId={passport.id} fallbackScore={passport.trust_score} />
         </div>
       </div>
 

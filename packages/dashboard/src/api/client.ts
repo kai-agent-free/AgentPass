@@ -111,6 +111,21 @@ export interface RegisterPassportResponse {
   created_at: string;
 }
 
+export interface TrustFactors {
+  owner_verified: boolean;
+  payment_method: boolean;
+  age_days: number;
+  successful_auths: number;
+  abuse_reports: number;
+}
+
+export interface TrustScoreResponse {
+  passport_id: string;
+  trust_score: number;
+  trust_level: "unverified" | "basic" | "verified" | "trusted";
+  factors: TrustFactors;
+}
+
 class ApiClient {
   private baseUrl: string;
   private token: string | null = null;
@@ -405,6 +420,13 @@ class ApiClient {
         body: JSON.stringify({ type, payload }),
       },
     );
+  }
+
+  /**
+   * Get detailed trust score with factor breakdown.
+   */
+  async getTrustScore(passportId: string): Promise<TrustScoreResponse> {
+    return this.fetch<TrustScoreResponse>(`/passports/${passportId}/trust`);
   }
 
   /**
