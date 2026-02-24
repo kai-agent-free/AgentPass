@@ -8,6 +8,7 @@
 import { describe, it, expect, afterEach } from "vitest";
 import { IdentityService } from "../services/identity-service.js";
 import { CredentialVault, generateKeyPair } from "@agentpass/core";
+import { createMockApiClient } from "../test-helpers.js";
 import path from "node:path";
 import os from "node:os";
 import fs from "node:fs";
@@ -52,7 +53,7 @@ describe("Identity Persistence", () => {
     await vault1.init();
 
     const service1 = new IdentityService();
-    await service1.init(vault1);
+    await service1.init(vault1, createMockApiClient());
 
     const { passport: passport1 } = await service1.createIdentity({
       name: "persistent-agent-1",
@@ -77,7 +78,7 @@ describe("Identity Persistence", () => {
     await vault2.init();
 
     const service2 = new IdentityService();
-    await service2.init(vault2);
+    await service2.init(vault2, createMockApiClient());
 
     // List identities - should still have both
     const identities2 = await service2.listIdentities();
@@ -92,7 +93,7 @@ describe("Identity Persistence", () => {
     expect(retrieved1).not.toBeNull();
     expect(retrieved1!.identity.name).toBe("persistent-agent-1");
     expect(retrieved1!.identity.description).toBe("First agent");
-    expect(retrieved1!.owner.email).toBe("owner1@test.com");
+    expect(retrieved1!.owner.email).toBe("persistent-agent-1@agent-mail.xyz");
 
     const retrieved2 = await service2.getIdentity(passport2.passport_id);
     expect(retrieved2).not.toBeNull();
@@ -110,7 +111,7 @@ describe("Identity Persistence", () => {
     await vault1.init();
 
     const service1 = new IdentityService();
-    await service1.init(vault1);
+    await service1.init(vault1, createMockApiClient());
 
     const { passport } = await service1.createIdentity({
       name: "revokable-agent",
@@ -128,7 +129,7 @@ describe("Identity Persistence", () => {
     await vault2.init();
 
     const service2 = new IdentityService();
-    await service2.init(vault2);
+    await service2.init(vault2, createMockApiClient());
 
     const identities = await service2.listIdentities();
     expect(identities).toHaveLength(1);
@@ -146,7 +147,7 @@ describe("Identity Persistence", () => {
     await vault1.init();
 
     const service1 = new IdentityService();
-    await service1.init(vault1);
+    await service1.init(vault1, createMockApiClient());
 
     const { passport: passport1 } = await service1.createIdentity({
       name: "agent-to-delete",
@@ -168,7 +169,7 @@ describe("Identity Persistence", () => {
     await vault2.init();
 
     const service2 = new IdentityService();
-    await service2.init(vault2);
+    await service2.init(vault2, createMockApiClient());
 
     const identities = await service2.listIdentities();
     expect(identities).toHaveLength(1);
@@ -192,7 +193,7 @@ describe("Identity Persistence", () => {
     await vault1.init();
 
     const service1 = new IdentityService();
-    await service1.init(vault1);
+    await service1.init(vault1, createMockApiClient());
 
     await service1.createIdentity({
       name: "encrypted-agent",
@@ -207,7 +208,7 @@ describe("Identity Persistence", () => {
     await vault2.init();
 
     const service2 = new IdentityService();
-    await service2.init(vault2);
+    await service2.init(vault2, createMockApiClient());
 
     // Should throw when trying to decrypt
     await expect(service2.listIdentities()).rejects.toThrow();

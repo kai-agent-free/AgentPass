@@ -16,6 +16,7 @@ import { CredentialService } from "../services/credential-service.js";
 import { AuthService } from "../services/auth-service.js";
 import { EmailServiceAdapter } from "../services/email-service-adapter.js";
 import { CredentialVault, generateKeyPair } from "@agentpass/core";
+import { createMockApiClient } from "../test-helpers.js";
 
 export interface DemoStepResult {
   step: number;
@@ -43,7 +44,7 @@ export async function runDemo(): Promise<DemoResult> {
   await vault.init();
 
   const identityService = new IdentityService();
-  await identityService.init(vault);
+  await identityService.init(vault, createMockApiClient());
 
   const credentialService = new CredentialService();
   const authService = new AuthService(identityService, credentialService);

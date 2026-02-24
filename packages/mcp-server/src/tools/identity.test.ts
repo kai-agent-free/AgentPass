@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import { IdentityService } from "../services/identity-service.js";
 import { CredentialVault, generateKeyPair } from "@agentpass/core";
+import { createMockApiClient } from "../test-helpers.js";
 import path from "node:path";
 import os from "node:os";
 import fs from "node:fs";
@@ -23,7 +24,7 @@ describe("IdentityService", () => {
     await vault.init();
 
     service = new IdentityService();
-    await service.init(vault);
+    await service.init(vault, createMockApiClient());
   });
 
   afterEach(() => {
@@ -58,7 +59,7 @@ describe("IdentityService", () => {
       expect(result.passport.passport_id).toMatch(/^ap_[a-z0-9]{12}$/);
       expect(result.passport.identity.name).toBe("test-agent");
       expect(result.passport.identity.description).toBe("A test agent");
-      expect(result.passport.owner.email).toBe("owner@example.com");
+      expect(result.passport.owner.email).toBe("test-agent@agent-mail.xyz");
       expect(result.passport.identity.public_key).toBeTruthy();
       expect(result.publicKey).toBeTruthy();
       expect(result.publicKey).toBe(result.passport.identity.public_key);

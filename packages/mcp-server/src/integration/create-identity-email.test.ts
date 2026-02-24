@@ -11,6 +11,7 @@ import { unlink } from "node:fs/promises";
 import { CredentialVault, generateKeyPair } from "@agentpass/core";
 import { IdentityService } from "../services/identity-service.js";
 import { EmailServiceAdapter } from "../services/email-service-adapter.js";
+import { createMockApiClient } from "../test-helpers.js";
 
 describe("Integration: Create Identity → Get Email", () => {
   let identityService: IdentityService;
@@ -26,7 +27,7 @@ describe("Integration: Create Identity → Get Email", () => {
 
     // Initialize services
     identityService = new IdentityService();
-    await identityService.init(vault);
+    await identityService.init(vault, createMockApiClient());
     emailService = new EmailServiceAdapter();
   });
 

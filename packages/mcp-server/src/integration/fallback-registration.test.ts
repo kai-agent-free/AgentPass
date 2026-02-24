@@ -16,6 +16,7 @@ import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import { CredentialVault, generateKeyPair } from "@agentpass/core";
 import { IdentityService } from "../services/identity-service.js";
 import { EmailServiceAdapter } from "../services/email-service-adapter.js";
+import { createMockApiClient } from "../test-helpers.js";
 
 describe("Integration: Fallback Registration Flow", () => {
   let identityService: IdentityService;
@@ -29,7 +30,7 @@ describe("Integration: Fallback Registration Flow", () => {
     await vault.init();
 
     identityService = new IdentityService();
-    await identityService.init(vault);
+    await identityService.init(vault, createMockApiClient());
     emailService = new EmailServiceAdapter();
   });
 
