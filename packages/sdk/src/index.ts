@@ -42,6 +42,34 @@ export interface AbuseReportResult {
   message?: string;
 }
 
+export interface SendMessageResult {
+  id: string;
+  from_passport_id: string;
+  to_passport_id: string;
+  subject: string;
+  created_at: string;
+}
+
+export interface Message {
+  id: string;
+  from_passport_id: string;
+  to_passport_id: string;
+  subject: string;
+  body: string;
+  read: boolean;
+  created_at: string;
+}
+
+export interface InboxResult {
+  messages: Message[];
+  limit: number;
+  offset: number;
+}
+
+export interface DeleteMessageResult {
+  deleted: boolean;
+}
+
 export interface VerificationMiddlewareOptions {
   apiUrl: string;
 }
@@ -164,6 +192,106 @@ export class AgentPassClient {
     }
 
     return (await response.json()) as AbuseReportResult;
+  }
+
+  /**
+   * Send a message from one passport to another.
+   */
+  async sendMessage(
+    fromPassportId: string,
+    toPassportId: string,
+    subject: string,
+    body: string,
+  ): Promise<SendMessageResult> {
+    const response = await this.fetchFn(`${this.apiUrl}/messages`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        from_passport_id: fromPassportId,
+        to_passport_id: toPassportId,
+        subject,
+        body,
+      }),
+    });
+
+    if (!response.ok) {
+      const errorBody = await response.json().catch(() => ({}));
+      throw new Error(
+        (errorBody as { error?: string }).error ??
+          `Send message failed: ${response.status}`,
+      );
+    }
+
+    return (await response.json()) as SendMessageResult;
+  }
+
+  /**
+   * Retrieve the inbox for a given passport.
+   */
+  async getInbox(passportId: string): Promise<InboxResult> {
+    const response = await this.fetchFn(
+      `${this.apiUrl}/messages?passport_id=${encodeURIComponent(passportId)}`,
+      {
+        method: "GET",
+        headers: { Accept: "application/json" },
+      },
+    );
+
+    if (!response.ok) {
+      const errorBody = await response.json().catch(() => ({}));
+      throw new Error(
+        (errorBody as { error?: string }).error ??
+          `Get inbox failed: ${response.status}`,
+      );
+    }
+
+    return (await response.json()) as InboxResult;
+  }
+
+  /**
+   * Retrieve a specific message by ID.
+   */
+  async getMessage(messageId: string): Promise<Message> {
+    const response = await this.fetchFn(
+      `${this.apiUrl}/messages/${encodeURIComponent(messageId)}`,
+      {
+        method: "GET",
+        headers: { Accept: "application/json" },
+      },
+    );
+
+    if (!response.ok) {
+      const errorBody = await response.json().catch(() => ({}));
+      throw new Error(
+        (errorBody as { error?: string }).error ??
+          `Get message failed: ${response.status}`,
+      );
+    }
+
+    return (await response.json()) as Message;
+  }
+
+  /**
+   * Delete a message by ID.
+   */
+  async deleteMessage(messageId: string): Promise<DeleteMessageResult> {
+    const response = await this.fetchFn(
+      `${this.apiUrl}/messages/${encodeURIComponent(messageId)}`,
+      {
+        method: "DELETE",
+        headers: { Accept: "application/json" },
+      },
+    );
+
+    if (!response.ok) {
+      const errorBody = await response.json().catch(() => ({}));
+      throw new Error(
+        (errorBody as { error?: string }).error ??
+          `Delete message failed: ${response.status}`,
+      );
+    }
+
+    return (await response.json()) as DeleteMessageResult;
   }
 }
 

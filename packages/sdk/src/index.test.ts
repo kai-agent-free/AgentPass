@@ -182,6 +182,219 @@ describe("AgentPassClient", () => {
       ).rejects.toThrow("Server error");
     });
   });
+
+  describe("sendMessage", () => {
+    it("sends correct POST request and returns result", async () => {
+      const sendResult = {
+        id: "msg-uuid-1",
+        from_passport_id: "ap_sender",
+        to_passport_id: "ap_receiver",
+        subject: "Hello",
+        created_at: "2026-02-24T00:00:00Z",
+      };
+
+      mockFetch.mockResolvedValue({
+        ok: true,
+        json: async () => sendResult,
+      });
+
+      const client = new AgentPassClient(
+        { apiUrl: "https://api.agentpass.space" },
+        mockFetch,
+      );
+
+      const result = await client.sendMessage(
+        "ap_sender",
+        "ap_receiver",
+        "Hello",
+        "Hi there!",
+      );
+
+      expect(result).toEqual(sendResult);
+      expect(mockFetch).toHaveBeenCalledWith(
+        "https://api.agentpass.space/messages",
+        expect.objectContaining({
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            from_passport_id: "ap_sender",
+            to_passport_id: "ap_receiver",
+            subject: "Hello",
+            body: "Hi there!",
+          }),
+        }),
+      );
+    });
+
+    it("throws on non-OK response", async () => {
+      mockFetch.mockResolvedValue({
+        ok: false,
+        status: 403,
+        json: async () => ({ error: "You do not own this passport" }),
+      });
+
+      const client = new AgentPassClient(
+        { apiUrl: "https://api.agentpass.space" },
+        mockFetch,
+      );
+
+      await expect(
+        client.sendMessage("ap_sender", "ap_receiver", "Hi", "Body"),
+      ).rejects.toThrow("You do not own this passport");
+    });
+  });
+
+  describe("getInbox", () => {
+    it("sends correct GET request and returns inbox", async () => {
+      const inboxResult = {
+        messages: [
+          {
+            id: "msg-1",
+            from_passport_id: "ap_other",
+            to_passport_id: "ap_mine",
+            subject: "Test",
+            body: "Hello",
+            read: false,
+            created_at: "2026-02-24T00:00:00Z",
+          },
+        ],
+        limit: 50,
+        offset: 0,
+      };
+
+      mockFetch.mockResolvedValue({
+        ok: true,
+        json: async () => inboxResult,
+      });
+
+      const client = new AgentPassClient(
+        { apiUrl: "https://api.agentpass.space" },
+        mockFetch,
+      );
+
+      const result = await client.getInbox("ap_mine");
+
+      expect(result).toEqual(inboxResult);
+      expect(mockFetch).toHaveBeenCalledWith(
+        "https://api.agentpass.space/messages?passport_id=ap_mine",
+        expect.objectContaining({
+          method: "GET",
+          headers: { Accept: "application/json" },
+        }),
+      );
+    });
+
+    it("throws on non-OK response", async () => {
+      mockFetch.mockResolvedValue({
+        ok: false,
+        status: 403,
+        json: async () => ({ error: "Passport not found or not owned by you" }),
+      });
+
+      const client = new AgentPassClient(
+        { apiUrl: "https://api.agentpass.space" },
+        mockFetch,
+      );
+
+      await expect(client.getInbox("ap_nope")).rejects.toThrow(
+        "Passport not found or not owned by you",
+      );
+    });
+  });
+
+  describe("getMessage", () => {
+    it("sends correct GET request and returns message", async () => {
+      const message = {
+        id: "msg-1",
+        from_passport_id: "ap_sender",
+        to_passport_id: "ap_receiver",
+        subject: "Hi",
+        body: "Hello!",
+        read: true,
+        created_at: "2026-02-24T00:00:00Z",
+      };
+
+      mockFetch.mockResolvedValue({
+        ok: true,
+        json: async () => message,
+      });
+
+      const client = new AgentPassClient(
+        { apiUrl: "https://api.agentpass.space" },
+        mockFetch,
+      );
+
+      const result = await client.getMessage("msg-1");
+
+      expect(result).toEqual(message);
+      expect(mockFetch).toHaveBeenCalledWith(
+        "https://api.agentpass.space/messages/msg-1",
+        expect.objectContaining({
+          method: "GET",
+          headers: { Accept: "application/json" },
+        }),
+      );
+    });
+
+    it("throws on non-OK response", async () => {
+      mockFetch.mockResolvedValue({
+        ok: false,
+        status: 404,
+        json: async () => ({ error: "Message not found" }),
+      });
+
+      const client = new AgentPassClient(
+        { apiUrl: "https://api.agentpass.space" },
+        mockFetch,
+      );
+
+      await expect(client.getMessage("msg-nope")).rejects.toThrow(
+        "Message not found",
+      );
+    });
+  });
+
+  describe("deleteMessage", () => {
+    it("sends correct DELETE request and returns result", async () => {
+      mockFetch.mockResolvedValue({
+        ok: true,
+        json: async () => ({ deleted: true }),
+      });
+
+      const client = new AgentPassClient(
+        { apiUrl: "https://api.agentpass.space" },
+        mockFetch,
+      );
+
+      const result = await client.deleteMessage("msg-1");
+
+      expect(result).toEqual({ deleted: true });
+      expect(mockFetch).toHaveBeenCalledWith(
+        "https://api.agentpass.space/messages/msg-1",
+        expect.objectContaining({
+          method: "DELETE",
+          headers: { Accept: "application/json" },
+        }),
+      );
+    });
+
+    it("throws on non-OK response", async () => {
+      mockFetch.mockResolvedValue({
+        ok: false,
+        status: 404,
+        json: async () => ({ error: "Message not found" }),
+      });
+
+      const client = new AgentPassClient(
+        { apiUrl: "https://api.agentpass.space" },
+        mockFetch,
+      );
+
+      await expect(client.deleteMessage("msg-nope")).rejects.toThrow(
+        "Message not found",
+      );
+    });
+  });
 });
 
 describe("generateWellKnownConfig", () => {
