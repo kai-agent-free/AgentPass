@@ -18,49 +18,56 @@ interface Settings {
   notifications: NotificationPreferences;
 }
 
-const SETTINGS_KEY = "agentpass_settings";
 const API_URL = import.meta.env.VITE_API_URL || "http://localhost:3846";
 
-function loadSettings(): Settings {
-  try {
-    const stored = localStorage.getItem(SETTINGS_KEY);
-    if (stored) {
-      return JSON.parse(stored);
-    }
-  } catch (error) {
-    console.error("Failed to load settings:", error);
-  }
+const DEFAULT_SETTINGS: Settings = {
+  webhookUrl: "",
+  telegramChatId: "",
+  ownerEmail: "owner@example.com",
+  notifications: {
+    agent_registered: true,
+    agent_login: false,
+    agent_error: true,
+    captcha_needed: true,
+    approval_needed: true,
+    daily_digest: true,
+  },
+};
 
-  return {
-    webhookUrl: "",
-    telegramChatId: "",
-    ownerEmail: "owner@example.com",
-    notifications: {
-      agent_registered: true,
-      agent_login: false,
-      agent_error: true,
-      captcha_needed: true,
-      approval_needed: true,
-      daily_digest: true,
-    },
+function settingsToFlat(settings: Settings): Record<string, string> {
+  const flat: Record<string, string> = {
+    webhookUrl: settings.webhookUrl,
+    telegramChatId: settings.telegramChatId,
+    ownerEmail: settings.ownerEmail,
   };
+  for (const [key, value] of Object.entries(settings.notifications)) {
+    flat[`notifications.${key}`] = String(value);
+  }
+  return flat;
 }
 
-function saveSettings(settings: Settings) {
-  try {
-    localStorage.setItem(SETTINGS_KEY, JSON.stringify(settings));
-  } catch (error) {
-    console.error("Failed to save settings:", error);
+function flatToSettings(flat: Record<string, string>): Settings {
+  const notifications = { ...DEFAULT_SETTINGS.notifications };
+  for (const key of Object.keys(notifications) as (keyof NotificationPreferences)[]) {
+    const flatKey = `notifications.${key}`;
+    if (flatKey in flat) {
+      notifications[key] = flat[flatKey] === "true";
+    }
   }
+  return {
+    webhookUrl: flat.webhookUrl || "",
+    telegramChatId: flat.telegramChatId || "",
+    ownerEmail: flat.ownerEmail || DEFAULT_SETTINGS.ownerEmail,
+    notifications,
+  };
 }
 
 export default function SettingsPage() {
   const { token } = useAuth();
-  const [settings, setSettings] = useState<Settings>(loadSettings);
+  const [settings, setSettings] = useState<Settings>(DEFAULT_SETTINGS);
+  const [settingsLoading, setSettingsLoading] = useState(true);
   const [webhookSaved, setWebhookSaved] = useState(false);
-  const [telegramLinked, setTelegramLinked] = useState(
-    !!settings.telegramChatId
-  );
+  const [telegramLinked, setTelegramLinked] = useState(false);
   const [apiStatus, setApiStatus] = useState<
     "checking" | "online" | "offline"
   >("checking");
@@ -78,6 +85,20 @@ export default function SettingsPage() {
   // Set token on apiClient whenever it changes
   useEffect(() => {
     apiClient.setToken(token);
+  }, [token]);
+
+  // Load settings from server
+  useEffect(() => {
+    if (!token) return;
+    setSettingsLoading(true);
+    apiClient.getSettings()
+      .then((flat) => {
+        const loaded = flatToSettings(flat);
+        setSettings(loaded);
+        setTelegramLinked(!!loaded.telegramChatId);
+      })
+      .catch((err) => console.error("Failed to load settings:", err))
+      .finally(() => setSettingsLoading(false));
   }, [token]);
 
   const loadApiKeys = useCallback(async () => {
@@ -159,8 +180,16 @@ export default function SettingsPage() {
     });
   };
 
+  const persistSettings = useCallback(async (s: Settings) => {
+    try {
+      await apiClient.updateSettings(settingsToFlat(s));
+    } catch (err) {
+      console.error("Failed to save settings:", err);
+    }
+  }, []);
+
   const handleSaveWebhook = () => {
-    saveSettings(settings);
+    persistSettings(settings);
     setWebhookSaved(true);
     setTimeout(() => setWebhookSaved(false), 3000);
   };
@@ -168,7 +197,7 @@ export default function SettingsPage() {
   const handleLinkTelegram = () => {
     if (settings.telegramChatId.trim()) {
       setTelegramLinked(true);
-      saveSettings(settings);
+      persistSettings(settings);
     }
   };
 
@@ -178,7 +207,7 @@ export default function SettingsPage() {
       notifications: { ...settings.notifications, [key]: !settings.notifications[key] },
     };
     setSettings(updated);
-    saveSettings(updated);
+    persistSettings(updated);
   };
 
   const updateWebhookUrl = (value: string) => {

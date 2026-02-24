@@ -222,5 +222,18 @@ export async function initDatabase(connectionString?: string): Promise<Sql> {
   await sql`CREATE INDEX IF NOT EXISTS idx_messages_to_passport ON messages(to_passport_id, created_at DESC)`;
   await sql`CREATE INDEX IF NOT EXISTS idx_messages_from_passport ON messages(from_passport_id, created_at DESC)`;
 
+  // Create owner_settings table (key-value store per owner)
+  await sql`
+    CREATE TABLE IF NOT EXISTS owner_settings (
+      owner_id    TEXT NOT NULL REFERENCES owners(id),
+      key         TEXT NOT NULL,
+      value       TEXT NOT NULL DEFAULT '',
+      updated_at  TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      PRIMARY KEY (owner_id, key)
+    )
+  `;
+
+  await sql`CREATE INDEX IF NOT EXISTS idx_owner_settings_owner_id ON owner_settings(owner_id)`;
+
   return sql;
 }

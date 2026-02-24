@@ -23,6 +23,7 @@ import { createBrowserSessionsRouter } from "./routes/browser-sessions.js";
 import { createWebhookRouter } from "./routes/webhooks.js";
 import { createTelegramRouter } from "./routes/telegram.js";
 import { createMessagesRouter } from "./routes/messages.js";
+import { createSettingsRouter } from "./routes/settings.js";
 import { createHealthRouter } from "./middleware/health.js";
 import { rateLimiters } from "./middleware/rate-limiter.js";
 import { requestLogger } from "./middleware/request-logging.js";
@@ -94,6 +95,7 @@ export async function createApp(connectionString: string = DATABASE_URL): Promis
   const browserSessionsRouter = createBrowserSessionsRouter(db, upgradeWebSocket);
   const webhookRouter = createWebhookRouter(db);
   const messagesRouter = createMessagesRouter(db);
+  const settingsRouter = createSettingsRouter(db);
   const telegramRouter = createTelegramRouter();
   const healthRouter = createHealthRouter(db);
 
@@ -118,6 +120,8 @@ export async function createApp(connectionString: string = DATABASE_URL): Promis
   app.route("/webhook", webhookRouter);
   // Agent-to-agent messaging
   app.route("/messages", messagesRouter);
+  // Owner settings (webhook URL, telegram chat ID, notification prefs)
+  app.route("/settings", settingsRouter);
   // Telegram routes for bot webhooks and account linking
   app.route("/telegram", telegramRouter);
 

@@ -315,6 +315,24 @@ class ApiClient {
   }
 
   /**
+   * Get owner settings from server.
+   */
+  async getSettings(): Promise<Record<string, string>> {
+    const response = await this.fetch<{ settings: Record<string, string> }>("/settings");
+    return response.settings;
+  }
+
+  /**
+   * Update owner settings on server.
+   */
+  async updateSettings(settings: Record<string, string>): Promise<void> {
+    await this.fetch<{ ok: boolean }>("/settings", {
+      method: "PUT",
+      body: JSON.stringify({ settings }),
+    });
+  }
+
+  /**
    * List approval requests for the owner's passports.
    */
   async listApprovals(status?: string): Promise<Approval[]> {
