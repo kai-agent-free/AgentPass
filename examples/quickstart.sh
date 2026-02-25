@@ -5,7 +5,7 @@
 # ============================================================
 set -euo pipefail
 
-API="http://38.49.210.10:3846"
+API="https://api.agentpass.space"
 RAND=$(openssl rand -hex 4)
 EMAIL="agent-${RAND}@example.com"
 PASSWORD="SecurePass_${RAND}!"
