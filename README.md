@@ -14,7 +14,7 @@
 </p>
 
 <p align="center">
-  <b>Live API:</b> <a href="http://38.49.210.10:3846">http://38.49.210.10:3846</a> · <a href="http://38.49.210.10/">Landing Page</a>
+  <b>Live API:</b> <a href="https://api.agentpass.space">https://api.agentpass.space</a> · <a href="https://agentpass.space/">Landing Page</a>
 </p>
 
 ---
@@ -40,7 +40,7 @@ bash examples/quickstart.sh
 Or do it manually with curl:
 
 ```bash
-API="http://38.49.210.10:3846"
+API="https://api.agentpass.space"
 
 # 1. Register
 curl -s -X POST "$API/auth/register" \
@@ -137,7 +137,7 @@ Key endpoints:
 ```typescript
 import { AgentPassSDK } from '@agentpass/sdk';
 
-const ap = new AgentPassSDK({ apiUrl: 'http://38.49.210.10:3846' });
+const ap = new AgentPassSDK({ apiUrl: 'https://api.agentpass.space' });
 
 const result = await ap.verify({
   passportId: 'ap_7xk2m9f3abcd',
