@@ -54,6 +54,7 @@ interface PassportRow {
   public_key: string;
   owner_email: string;
   name: string;
+  type: string;
   description: string;
   trust_score: number;
   status: string;
@@ -172,7 +173,45 @@ export function createPassportsRouter(db: Sql): Hono<{ Variables: AuthVariables 
     }, 201);
   });
 
-  // GET /passports/:id — get passport info
+  // GET /passports/:id/public — public passport lookup (no auth required)
+  router.get("/:id/public", async (c) => {
+    const id = c.req.param("id");
+
+    const rows = await db<PassportRow[]>`
+      SELECT id, public_key, name, description, trust_score, status, created_at
+      FROM passports WHERE id = ${id}
+    `;
+    const row = rows[0];
+
+    if (!row) {
+      return c.json(
+        { error: "Passport not found", code: "NOT_FOUND" },
+        404,
+      );
+    }
+
+    if (row.status === "revoked") {
+      return c.json({
+        id: row.id,
+        status: "revoked",
+        trust_score: 0,
+        trust_level: "revoked",
+      });
+    }
+
+    return c.json({
+      id: row.id,
+      public_key: row.public_key,
+      name: row.name,
+      description: row.description,
+      trust_score: row.trust_score,
+      trust_level: getTrustLevel(row.trust_score),
+      status: row.status,
+      created_at: row.created_at.toISOString(),
+    });
+  });
+
+  // GET /passports/:id — get full passport info (owner only)
   router.get("/:id", requireAuth(db), async (c) => {
     const owner = c.get("owner") as OwnerPayload;
     const id = c.req.param("id");
