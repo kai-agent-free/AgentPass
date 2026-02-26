@@ -54,3 +54,4 @@ tmp/
 .beads/.local_version
 .beads/last-touched
 .beads/metadata.json
+packages/python-sdk/.pytest_cache/

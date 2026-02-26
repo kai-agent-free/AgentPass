@@ -59,6 +59,59 @@ export interface TrustFactors {
   age_days: number;
   successful_auths: number;
   abuse_reports: number;
+  external_attestations?: ExternalAttestation[];
+}
+
+export interface ExternalAttestation {
+  source: string;
+  attester_id: string;
+  score: number;
+  attested_at: string;
+  signature?: string;
+}
+
+/**
+ * MVA Credential — Minimum Viable Attestation for AI Agent Identity
+ */
+export interface MVACredential {
+  version: '0.2';
+  type: 'mva_credential';
+  subject: {
+    agent_id: string;
+    passport_pubkey: string;
+  };
+  task: {
+    task_hash: string;
+    scope_hash: string;
+    description?: string;
+    contract_id?: string;
+  };
+  execution_context: {
+    model_id?: string;
+    temperature?: number;
+    system_prompt_hash?: string;
+  };
+  action_hashes: string[];
+  attestations: MVAAttestation[];
+  delegation_proof?: MVADelegationProof;
+  passport_sig: string;
+  created_at: string;
+}
+
+export interface MVAAttestation {
+  attester_id: string;
+  attester_sig: string;
+  score?: number;
+  completion_ts: string;
+}
+
+export interface MVADelegationProof {
+  delegator_id: string;
+  scope: string[];
+  scope_hash: string;
+  liability_weight?: number;
+  expires_at: string;
+  delegator_sig: string;
 }
 
 export interface VaultInfo {

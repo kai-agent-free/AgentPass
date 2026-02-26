@@ -14,6 +14,15 @@ export interface TrustFactors {
   age_days: number;
   successful_auths: number;
   abuse_reports: number;
+  external_attestations?: ExternalAttestationFactor[];
+}
+
+export interface ExternalAttestationFactor {
+  source: string;
+  attester_id: string;
+  score: number;
+  attested_at: string;
+  signature?: string;
 }
 
 /**
@@ -59,6 +68,17 @@ export function calculateTrustScore(factors: TrustFactors): number {
   // Activity bonus: +1 per 10 successful auths, capped at 20
   const activityBonus = Math.min(Math.floor(factors.successful_auths / 10), 20);
   score += activityBonus;
+
+  // External attestations bonus: avg score of high-quality isnad attestations
+  if (factors.external_attestations && factors.external_attestations.length > 0) {
+    const highScoreAttestations = factors.external_attestations.filter(a => a.score > 0.8);
+    if (highScoreAttestations.length > 0) {
+      // Up to +10 points based on number and quality of attestations
+      const avgScore = highScoreAttestations.reduce((sum, a) => sum + a.score, 0) / highScoreAttestations.length;
+      const attestationBonus = Math.min(Math.round(avgScore * highScoreAttestations.length * 5), 10);
+      score += attestationBonus;
+    }
+  }
 
   // Abuse penalties: -50 per report
   score -= factors.abuse_reports * 50;

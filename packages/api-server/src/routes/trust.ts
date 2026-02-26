@@ -16,12 +16,21 @@ import {
   calculateTrustScore,
   getTrustLevel,
   type TrustFactors,
+  type ExternalAttestationFactor,
 } from "../services/trust-score.js";
 
 // --- Zod schema for abuse report ---
 
 const ReportAbuseSchema = z.object({
   reason: z.string().min(1, "Reason is required").max(512, "Reason must be 512 characters or fewer"),
+});
+
+const AddAttestationSchema = z.object({
+  source: z.string().min(1, "Source is required").max(128),
+  attester_id: z.string().min(1, "Attester ID is required").max(256),
+  score: z.number().min(0).max(1),
+  attested_at: z.string().min(1, "Attested at is required"),
+  signature: z.string().optional(),
 });
 
 type ReportAbuseBody = z.infer<typeof ReportAbuseSchema>;
@@ -68,6 +77,9 @@ function buildTrustFactors(
     age_days: ageDays,
     successful_auths: successfulAuths,
     abuse_reports: typeof metadata.abuse_reports === "number" ? metadata.abuse_reports : 0,
+    external_attestations: Array.isArray(metadata.external_attestations)
+      ? (metadata.external_attestations as ExternalAttestationFactor[])
+      : undefined,
   };
 }
 
@@ -250,6 +262,68 @@ export function createTrustRouter(db: Sql): Hono<{ Variables: AuthVariables }> {
       trust_score: score,
       trust_level: level,
       abuse_reports: newReports,
+    });
+  });
+
+  // POST /passports/:id/attestations — add external attestation
+  router.post("/:id/attestations", requireAuth(db), zValidator(AddAttestationSchema), async (c) => {
+    const owner = c.get("owner") as OwnerPayload;
+    const passportId = c.req.param("id");
+
+    const result = await fetchOwnedPassport(c, passportId, owner);
+    if (result instanceof Response) return result;
+    const row = result;
+
+    const body = getValidatedBody<z.infer<typeof AddAttestationSchema>>(c);
+    const metadata = parseMetadata(row.metadata);
+
+    // Initialize attestations array if needed
+    if (!Array.isArray(metadata.external_attestations)) {
+      metadata.external_attestations = [];
+    }
+
+    const attestation: ExternalAttestationFactor = {
+      source: body.source,
+      attester_id: body.attester_id,
+      score: body.score,
+      attested_at: body.attested_at,
+      ...(body.signature ? { signature: body.signature } : {}),
+    };
+
+    (metadata.external_attestations as ExternalAttestationFactor[]).push(attestation);
+
+    const { score, level, factors } = await recalculateAndPersist(
+      passportId,
+      metadata,
+      row.created_at,
+    );
+
+    return c.json({
+      passport_id: row.id,
+      trust_score: score,
+      trust_level: level,
+      attestation,
+    }, 201);
+  });
+
+  // GET /passports/:id/attestations — list external attestations
+  router.get("/:id/attestations", requireAuth(db), async (c) => {
+    const owner = c.get("owner") as OwnerPayload;
+    const passportId = c.req.param("id");
+
+    const result = await fetchOwnedPassport(c, passportId, owner);
+    if (result instanceof Response) return result;
+    const row = result;
+
+    const metadata = parseMetadata(row.metadata);
+    const attestations = Array.isArray(metadata.external_attestations)
+      ? metadata.external_attestations
+      : [];
+
+    return c.json({
+      passport_id: row.id,
+      attestations,
+      count: attestations.length,
     });
   });
 
