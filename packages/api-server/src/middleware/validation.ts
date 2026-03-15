@@ -49,8 +49,7 @@ export function zValidator(schema: ZodSchema) {
       );
     }
 
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    (c as any)._validatedBody = result.data;
+    c.set("validatedBody", result.data);
     await next();
   };
 }
@@ -59,6 +58,5 @@ export function zValidator(schema: ZodSchema) {
  * Retrieve the validated body from the context.
  */
 export function getValidatedBody<T>(c: Context): T {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  return (c as any)._validatedBody as T;
+  return c.get("validatedBody") as T;
 }

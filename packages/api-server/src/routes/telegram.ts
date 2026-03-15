@@ -131,7 +131,7 @@ export function createTelegramRouter(db?: Sql): Hono {
         const stored = await persistTelegramChatId(db, linkInfo.email, linkInfo.chatId);
         if (!stored) {
           // Owner not found — still return ok to Telegram
-          console.warn(`[Telegram Webhook] Owner not found for email: ${linkInfo.email}`);
+          console.warn('[Telegram Webhook] Owner not found for provided email');
         }
       }
     }
@@ -142,7 +142,7 @@ export function createTelegramRouter(db?: Sql): Hono {
       try {
         await bot.handleUpdate(body);
       } catch (err) {
-        console.error("[Telegram Webhook] Error processing update:", err);
+        console.error("[Telegram Webhook] Error processing update:", err instanceof Error ? err.message : 'unknown error');
       }
     }
 
