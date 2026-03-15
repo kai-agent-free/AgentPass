@@ -24,6 +24,7 @@ import { createWebhookRouter } from "./routes/webhooks.js";
 import { createTelegramRouter } from "./routes/telegram.js";
 import { createMessagesRouter } from "./routes/messages.js";
 import { createSettingsRouter } from "./routes/settings.js";
+import { createReputationRouter } from "./routes/reputation.js";
 import { createHealthRouter } from "./middleware/health.js";
 import { rateLimiters } from "./middleware/rate-limiter.js";
 import { requestLogger } from "./middleware/request-logging.js";
@@ -97,6 +98,7 @@ export async function createApp(connectionString: string = DATABASE_URL): Promis
   const messagesRouter = createMessagesRouter(db);
   const settingsRouter = createSettingsRouter(db);
   const telegramRouter = createTelegramRouter(db);
+  const reputationRouter = createReputationRouter(db);
   const healthRouter = createHealthRouter(db);
 
   app.route("/", healthRouter);
@@ -124,6 +126,8 @@ export async function createApp(connectionString: string = DATABASE_URL): Promis
   app.route("/settings", settingsRouter);
   // Telegram routes for bot webhooks and account linking
   app.route("/telegram", telegramRouter);
+  // DID reputation via CoinPay Reputation Protocol
+  app.route("/reputation", reputationRouter);
 
   // Demo service — "Login with AgentPass" native auth showcase
   const { app: demoApp } = createDemoApp(
