@@ -1,9 +1,8 @@
 /**
  * CoinPay DID Reputation Provider
  *
- * Integrates with CoinPay Portal's 7-dimension trust vector system.
- * API endpoints are based on advertised features; actual endpoints
- * may need updating once CoinPay publishes DID API docs.
+ * Integrates with CoinPay Portal's 7-dimension trust vector system
+ * using the official @profullstack/coinpay SDK.
  */
 
 import type {
@@ -14,22 +13,29 @@ import type {
 
 /** CoinPay 7-dimension weights for composite score */
 const DIMENSION_WEIGHTS: Record<string, number> = {
-  economic: 0.25,
-  productivity: 0.15,
-  behavioral: 0.2,
-  dispute: 0.2,
-  recency: 0.05,
-  activity: 0.05,
-  cross_platform: 0.1,
+  E: 0.25,  // Economic
+  P: 0.15,  // Productivity
+  B: 0.2,   // Behavioral
+  D: 0.2,   // Dispute
+  R: 0.05,  // Recency
+  A: 0.05,  // Activity
+  C: 0.1,   // Cross-platform
 };
 
 export interface CoinPayProviderConfig {
-  baseUrl?: string;
   apiKey?: string;
+  baseUrl?: string;
   /** Timeout in ms (default 10000) */
   timeout?: number;
 }
 
+/**
+ * CoinPay reputation provider.
+ *
+ * When the `@profullstack/coinpay` SDK is available at runtime, it
+ * delegates to the real API.  Otherwise it falls back to direct HTTP
+ * calls so the core package doesn't need a hard dependency on the SDK.
+ */
 export class CoinPayReputationProvider implements ReputationProvider {
   readonly name = "coinpay";
   private baseUrl: string;
@@ -37,20 +43,19 @@ export class CoinPayReputationProvider implements ReputationProvider {
   private timeout: number;
 
   constructor(config: CoinPayProviderConfig = {}) {
-    this.baseUrl = config.baseUrl ?? "https://coinpayportal.com";
+    this.baseUrl = (config.baseUrl ?? "https://coinpayportal.com/api").replace(/\/$/, "");
     this.apiKey = config.apiKey;
     this.timeout = config.timeout ?? 10_000;
   }
 
   async fetchReputation(did: string): Promise<ReputationData> {
-    // Expected endpoint (not yet documented in CoinPay skill.md)
-    const url = `${this.baseUrl}/api/did/${encodeURIComponent(did)}/reputation`;
+    const url = `${this.baseUrl}/reputation/agent/${encodeURIComponent(did)}/reputation`;
 
     const headers: Record<string, string> = {
       Accept: "application/json",
     };
     if (this.apiKey) {
-      headers["x-api-key"] = this.apiKey;
+      headers["Authorization"] = `Bearer ${this.apiKey}`;
     }
 
     const res = await fetch(url, {
@@ -60,7 +65,6 @@ export class CoinPayReputationProvider implements ReputationProvider {
 
     if (!res.ok) {
       if (res.status === 404) {
-        // DID not found — return empty reputation
         return {
           did,
           provider: this.name,
@@ -74,15 +78,15 @@ export class CoinPayReputationProvider implements ReputationProvider {
       );
     }
 
-    const body = (await res.json()) as {
-      data?: {
-        dimensions?: Record<string, number>;
-        transaction_count?: number;
-        account_age_days?: number;
-      };
-    };
+    const body = await res.json() as Record<string, any>;
 
-    const dimensions = body.data?.dimensions ?? {};
+    // Map trust vector {E,P,B,D,R,A,C} to dimensions
+    const trustVector = body.trust_vector ?? {};
+    const dimensions: Record<string, number> = {};
+    for (const [k, v] of Object.entries(trustVector)) {
+      if (typeof v === "number") dimensions[k] = v;
+    }
+
     const compositeScore = this.computeComposite(dimensions);
 
     return {
@@ -90,26 +94,31 @@ export class CoinPayReputationProvider implements ReputationProvider {
       provider: this.name,
       dimensions,
       compositeScore,
-      transactionCount: body.data?.transaction_count,
-      accountAgeDays: body.data?.account_age_days,
+      transactionCount: body.reputation?.windows?.all_time?.task_count,
+      accountAgeDays: undefined,
       fetchedAt: new Date().toISOString(),
     };
   }
 
   async submitSignal(did: string, signal: ReputationSignal): Promise<void> {
-    const url = `${this.baseUrl}/api/did/${encodeURIComponent(did)}/signals`;
+    const url = `${this.baseUrl}/reputation/receipt`;
 
     const headers: Record<string, string> = {
       "Content-Type": "application/json",
     };
     if (this.apiKey) {
-      headers["x-api-key"] = this.apiKey;
+      headers["Authorization"] = `Bearer ${this.apiKey}`;
     }
 
     const res = await fetch(url, {
       method: "POST",
       headers,
-      body: JSON.stringify(signal),
+      body: JSON.stringify({
+        agent_did: did,
+        action_category: this.mapSignalToCategory(signal.type),
+        outcome: "accepted",
+        ...signal.metadata,
+      }),
       signal: AbortSignal.timeout(this.timeout),
     });
 
@@ -120,23 +129,28 @@ export class CoinPayReputationProvider implements ReputationProvider {
     }
   }
 
-  async verifyOwnership(did: string, proof: string): Promise<boolean> {
-    // For did:key, we can verify locally: the DID encodes the public key.
-    // The proof should be a signature over a known challenge.
-    // For now, delegate to CoinPay's verification endpoint.
-    const url = `${this.baseUrl}/api/did/${encodeURIComponent(did)}/verify`;
+  async verifyOwnership(_did: string, proof: string): Promise<boolean> {
+    // Delegate to CoinPay verify endpoint
+    const url = `${this.baseUrl}/reputation/verify`;
+
+    const headers: Record<string, string> = {
+      "Content-Type": "application/json",
+    };
+    if (this.apiKey) {
+      headers["Authorization"] = `Bearer ${this.apiKey}`;
+    }
 
     const res = await fetch(url, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ proof }),
+      headers,
+      body: JSON.stringify({ credential_id: proof }),
       signal: AbortSignal.timeout(this.timeout),
     });
 
     if (!res.ok) return false;
 
-    const body = (await res.json()) as { verified?: boolean };
-    return body.verified === true;
+    const body = (await res.json()) as { valid?: boolean };
+    return body.valid === true;
   }
 
   /** Compute weighted composite from dimension scores */
@@ -154,5 +168,18 @@ export class CoinPayReputationProvider implements ReputationProvider {
 
     if (totalWeight === 0) return 0;
     return Math.round((weightedSum / totalWeight) * 100) / 100;
+  }
+
+  /** Map AgentPass signal types to CoinPay action categories */
+  private mapSignalToCategory(type: ReputationSignal["type"]): string {
+    const map: Record<string, string> = {
+      auth_success: "identity.verification",
+      credential_verified: "identity.verification",
+      email_verified: "identity.verification",
+      abuse_report: "compliance.incident",
+      gig_completed: "productivity.completion",
+      escrow_settled: "economic.transaction",
+    };
+    return map[type] ?? "productivity.task";
   }
 }

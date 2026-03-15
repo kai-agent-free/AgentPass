@@ -2,7 +2,7 @@
  * Aggregates reputation from multiple providers into a single trust score.
  */
 
-import type { ExternalAttestation } from "../types/passport.js";
+import type { ExternalAttestation } from "../types/index.js";
 import type { ReputationProvider, ReputationData } from "./types.js";
 
 export class ReputationAggregator {
