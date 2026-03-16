@@ -14,6 +14,7 @@ import type { Sql } from "../db/schema.js";
 import bcrypt from "bcryptjs";
 import { zValidator, getValidatedBody } from "../middleware/validation.js";
 import { signJwt, requireAuth, type OwnerPayload, type AuthVariables } from "../middleware/auth.js";
+import { rateLimiters } from "../middleware/rate-limiter.js";
 
 // --- Zod schemas ---
 
@@ -21,7 +22,9 @@ const RegisterSchema = z.object({
   email: z.string().email("Invalid email address"),
   password: z
     .string()
-    .min(8, "Password must be at least 8 characters")
+    .min(12, "Password must be at least 12 characters")
+    .regex(/[0-9]/, "Password must contain at least one number")
+    .regex(/[^a-zA-Z0-9]/, "Password must contain at least one special character")
     .max(128, "Password must be 128 characters or fewer"),
   name: z
     .string()
@@ -60,7 +63,7 @@ export function createAuthRouter(db: Sql): Hono<{ Variables: AuthVariables }> {
   const router = new Hono<{ Variables: AuthVariables }>();
 
   // POST /auth/register — Create owner account
-  router.post("/register", zValidator(RegisterSchema), async (c) => {
+  router.post("/register", rateLimiters.auth, zValidator(RegisterSchema), async (c) => {
     const body = getValidatedBody<RegisterBody>(c);
 
     // Check if email already exists
@@ -70,8 +73,8 @@ export function createAuthRouter(db: Sql): Hono<{ Variables: AuthVariables }> {
 
     if (existing.length > 0) {
       return c.json(
-        { error: "Email already registered", code: "EMAIL_EXISTS" },
-        409,
+        { error: "Registration failed", code: "REGISTRATION_FAILED" },
+        400,
       );
     }
 
@@ -104,7 +107,7 @@ export function createAuthRouter(db: Sql): Hono<{ Variables: AuthVariables }> {
   });
 
   // POST /auth/login — Login and get JWT
-  router.post("/login", zValidator(LoginSchema), async (c) => {
+  router.post("/login", rateLimiters.auth, zValidator(LoginSchema), async (c) => {
     const body = getValidatedBody<LoginBody>(c);
 
     // Look up owner by email

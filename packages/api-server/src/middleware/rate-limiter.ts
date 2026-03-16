@@ -188,6 +188,9 @@ export const rateLimiters = {
 
   /** Default for other endpoints: 60 requests per minute */
   default: rateLimiter({ maxRequests: 60, windowMs: 60 * 1000 }),
+
+  /** Auth endpoints (login/register): 5 requests per minute */
+  auth: rateLimiter({ maxRequests: 5, windowMs: 60 * 1000 }),
 };
 
 /**

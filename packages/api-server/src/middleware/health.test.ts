@@ -26,17 +26,10 @@ describe("Health endpoints", () => {
       expect(data.status).toBe("ok");
     });
 
-    it("includes version field", async () => {
+    it("does not leak version or uptime", async () => {
       const res = await app.request("/health");
       const data = (await res.json()) as Record<string, unknown>;
-      expect(data.version).toBe("0.1.0");
-    });
-
-    it("includes uptime_seconds as a number", async () => {
-      const res = await app.request("/health");
-      const data = (await res.json()) as Record<string, unknown>;
-      expect(typeof data.uptime_seconds).toBe("number");
-      expect(data.uptime_seconds).toBeGreaterThanOrEqual(0);
+      expect(data).toEqual({ status: "ok" });
     });
   });
 
