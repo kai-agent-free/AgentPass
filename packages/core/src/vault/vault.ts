@@ -9,7 +9,7 @@
 
 import Database from "better-sqlite3";
 import type { StoredCredential, AgentPassport } from "../types/index.js";
-import { encrypt, decrypt, deriveVaultKey } from "../crypto/index.js";
+import { encrypt, decrypt, deriveVaultKey, generateVaultSalt } from "../crypto/index.js";
 
 /** Metadata returned by `list()` — never includes passwords or cookies. */
 export interface CredentialListEntry {
@@ -64,8 +64,6 @@ export class CredentialVault {
    * Must be called before any other method.
    */
   async init(): Promise<void> {
-    this.vaultKey = await deriveVaultKey(this.privateKey);
-
     this.db = new Database(this.dbPath);
 
     // Enable WAL mode for better concurrent read performance
@@ -88,6 +86,45 @@ export class CredentialVault {
         updated_at TEXT NOT NULL
       )
     `);
+
+    // Vault metadata table for storing per-vault salt
+    this.db.exec(`
+      CREATE TABLE IF NOT EXISTS vault_metadata (
+        key TEXT PRIMARY KEY,
+        value TEXT NOT NULL
+      )
+    `);
+
+    // Get or generate salt
+    const saltRow = this.db.prepare(
+      "SELECT value FROM vault_metadata WHERE key = 'hkdf_salt'"
+    ).get() as { value: string } | undefined;
+
+    let salt: string | undefined;
+    if (saltRow) {
+      salt = saltRow.value;
+    } else {
+      // Check if vault has existing data (legacy vault with static salt)
+      const hasData = this.db.prepare(
+        "SELECT 1 FROM credentials LIMIT 1"
+      ).get();
+      const hasIdentities = this.db.prepare(
+        "SELECT 1 FROM identities LIMIT 1"
+      ).get();
+
+      if (hasData || hasIdentities) {
+        // Legacy vault — use no salt (falls back to static salt) for compatibility
+        salt = undefined;
+      } else {
+        // New vault — generate random salt
+        salt = generateVaultSalt();
+        this.db.prepare(
+          "INSERT INTO vault_metadata (key, value) VALUES ('hkdf_salt', ?)"
+        ).run(salt);
+      }
+    }
+
+    this.vaultKey = await deriveVaultKey(this.privateKey, salt);
   }
 
   /**
