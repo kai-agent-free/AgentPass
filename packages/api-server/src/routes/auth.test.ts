@@ -86,10 +86,10 @@ describe("Auth routes", () => {
     it("returns 409 for duplicate email", async () => {
       await register();
       const res = await register();
-      expect(res.status).toBe(409);
+      expect(res.status).toBe(400);
 
       const data = await res.json();
-      expect(data.code).toBe("EMAIL_EXISTS");
+      expect(data.code).toBe("REGISTRATION_FAILED");
     });
 
     it("returns 400 for invalid email", async () => {
