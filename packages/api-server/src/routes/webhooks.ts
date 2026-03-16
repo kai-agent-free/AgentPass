@@ -8,6 +8,7 @@
 import { Hono } from 'hono';
 import type { Sql } from '../db/schema.js';
 import { createHmac, timingSafeEqual } from 'crypto';
+import { requireAuth, type OwnerPayload, type AuthVariables } from '../middleware/auth.js';
 
 /**
  * Constant-time string comparison to prevent timing attacks.
@@ -17,8 +18,8 @@ function constantTimeCompare(a: string, b: string): boolean {
   return timingSafeEqual(Buffer.from(a, 'utf-8'), Buffer.from(b, 'utf-8'));
 }
 
-export function createWebhookRouter(db: Sql): Hono {
-  const app = new Hono();
+export function createWebhookRouter(db: Sql): Hono<{ Variables: AuthVariables }> {
+  const app = new Hono<{ Variables: AuthVariables }>();
 
   /**
    * POST /webhook/email-received
@@ -66,8 +67,19 @@ export function createWebhookRouter(db: Sql): Hono {
    * Poll for new email notifications for a specific address.
    * Returns list of pending notifications and marks them as retrieved.
    */
-  app.get('/email-notifications/:address', async (c) => {
+  app.get('/email-notifications/:address', requireAuth(db), async (c) => {
+    const owner = c.get('owner') as OwnerPayload;
     const address = c.req.param('address').toLowerCase();
+
+    // Scope to owner's own email address or passport email addresses
+    const ownerPassports = await db<{ owner_email: string }[]>`
+      SELECT DISTINCT owner_email FROM passports WHERE owner_email = ${address}
+    `;
+    const isOwnerEmail = owner.email.toLowerCase() === address;
+    const isPassportEmail = ownerPassports.length > 0 && ownerPassports[0]?.owner_email === owner.email;
+    if (!isOwnerEmail && !isPassportEmail) {
+      return c.json({ error: 'Access denied: address does not belong to you', code: 'FORBIDDEN' }, 403);
+    }
 
     // Get all unprocessed notifications for this address
     interface EmailNotificationRow {
@@ -193,8 +205,23 @@ export function createWebhookRouter(db: Sql): Hono {
    * Poll for new SMS notifications for a specific phone number.
    * Returns list of pending notifications and marks them as retrieved.
    */
-  app.get('/sms-notifications/:phoneNumber', async (c) => {
+  app.get('/sms-notifications/:phoneNumber', requireAuth(db), async (c) => {
+    const owner = c.get('owner') as OwnerPayload;
     const phoneNumber = c.req.param('phoneNumber');
+
+    // Scope to owner's own phone — check settings table for phone association
+    const phoneRows = await db<{ value: string }[]>`
+      SELECT value FROM owner_settings
+      WHERE owner_id = ${owner.owner_id} AND key = 'phone_number' AND value = ${phoneNumber}
+    `;
+    // Also check if phone matches any passport metadata phone
+    const passportPhoneRows = await db<{ id: string }[]>`
+      SELECT id FROM passports
+      WHERE owner_email = ${owner.email} AND metadata->>'phone' = ${phoneNumber}
+    `;
+    if (phoneRows.length === 0 && passportPhoneRows.length === 0) {
+      return c.json({ error: 'Access denied: phone number does not belong to you', code: 'FORBIDDEN' }, 403);
+    }
 
     // Get all unprocessed notifications for this phone number
     interface SmsNotificationRow {

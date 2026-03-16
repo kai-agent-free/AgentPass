@@ -33,12 +33,22 @@ export async function initDatabase(connectionString?: string): Promise<Sql> {
       password_hash TEXT NOT NULL,
       name          TEXT NOT NULL DEFAULT '',
       verified      BOOLEAN NOT NULL DEFAULT false,
+      role          TEXT NOT NULL DEFAULT 'user',
       created_at    TIMESTAMPTZ NOT NULL DEFAULT NOW(),
       updated_at    TIMESTAMPTZ NOT NULL DEFAULT NOW()
     )
   `;
 
   await sql`CREATE INDEX IF NOT EXISTS idx_owners_email ON owners(email)`;
+
+  // Add role column if it doesn't exist (migration for existing databases)
+  await sql`
+    DO $$ BEGIN
+      ALTER TABLE owners ADD COLUMN role TEXT NOT NULL DEFAULT 'user';
+    EXCEPTION WHEN duplicate_column THEN
+      NULL;
+    END $$
+  `;
 
   // Create passports table
   await sql`
