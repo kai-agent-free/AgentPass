@@ -177,16 +177,34 @@ export function createTrustRouter(db: Sql): Hono<{ Variables: AuthVariables }> {
   });
 
   // PATCH /passports/:id/trust/verify-owner — set owner_verified flag
+  // Requires a DIFFERENT authenticated user (admin or verifier), not the passport owner.
+  // Self-verification is not allowed to prevent trust score manipulation.
   router.patch("/:id/trust/verify-owner", requireAuth(db), async (c) => {
     const owner = c.get("owner") as OwnerPayload;
     const passportId = c.req.param("id");
 
-    const result = await fetchOwnedPassport(c, passportId, owner);
-    if (result instanceof Response) return result;
-    const row = result;
+    // Look up the passport (without ownership check — the caller must NOT be the owner)
+    const rows = await db<PassportRow[]>`
+      SELECT id, owner_email, trust_score, status, metadata, created_at
+      FROM passports WHERE id = ${passportId}
+    `;
+    const row = rows[0];
+
+    if (!row) {
+      return c.json({ error: "Passport not found", code: "NOT_FOUND" }, 404);
+    }
+
+    // Prevent self-verification: owner cannot verify their own passport
+    if (row.owner_email === owner.email) {
+      return c.json(
+        { error: "Cannot verify your own passport. Verification must be performed by another authorized party.", code: "SELF_VERIFICATION_FORBIDDEN" },
+        403,
+      );
+    }
 
     const metadata = parseMetadata(row.metadata);
     metadata.owner_verified = true;
+    metadata.verified_by = owner.email;
 
     const { score, level, factors } = await recalculateAndPersist(
       passportId,
@@ -203,16 +221,34 @@ export function createTrustRouter(db: Sql): Hono<{ Variables: AuthVariables }> {
   });
 
   // PATCH /passports/:id/trust/payment-method — set payment_method flag
+  // Requires a DIFFERENT authenticated user (admin or payment processor), not the passport owner.
+  // Self-attestation of payment method is not allowed to prevent trust score manipulation.
   router.patch("/:id/trust/payment-method", requireAuth(db), async (c) => {
     const owner = c.get("owner") as OwnerPayload;
     const passportId = c.req.param("id");
 
-    const result = await fetchOwnedPassport(c, passportId, owner);
-    if (result instanceof Response) return result;
-    const row = result;
+    // Look up the passport (without ownership check — the caller must NOT be the owner)
+    const rows = await db<PassportRow[]>`
+      SELECT id, owner_email, trust_score, status, metadata, created_at
+      FROM passports WHERE id = ${passportId}
+    `;
+    const row = rows[0];
+
+    if (!row) {
+      return c.json({ error: "Passport not found", code: "NOT_FOUND" }, 404);
+    }
+
+    // Prevent self-attestation: owner cannot set payment method on their own passport
+    if (row.owner_email === owner.email) {
+      return c.json(
+        { error: "Cannot attest payment method on your own passport. This must be confirmed by a payment processor or admin.", code: "SELF_ATTESTATION_FORBIDDEN" },
+        403,
+      );
+    }
 
     const metadata = parseMetadata(row.metadata);
     metadata.payment_method = true;
+    metadata.payment_verified_by = owner.email;
 
     const { score, level, factors } = await recalculateAndPersist(
       passportId,
