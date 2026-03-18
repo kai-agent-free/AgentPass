@@ -6,7 +6,7 @@
 
 import crypto from "node:crypto";
 
-const API = "http://38.49.210.10:3846";
+const API = process.env.AGENTPASS_API_URL || "http://localhost:3846";
 const rand = crypto.randomBytes(4).toString("hex");
 const EMAIL = `agent-${rand}@example.com`;
 const PASSWORD = `SecurePass_${rand}!`;
