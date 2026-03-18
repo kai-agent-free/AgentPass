@@ -186,6 +186,12 @@ export const rateLimiters = {
   /** Passport verification: 30 requests per minute */
   verifyPassport: rateLimiter({ maxRequests: 30, windowMs: 60 * 1000 }),
 
+  /** Registration: 5 requests per minute */
+  register: rateLimiter({ maxRequests: 5, windowMs: 60 * 1000 }),
+
+  /** Login: 10 requests per minute */
+  login: rateLimiter({ maxRequests: 10, windowMs: 60 * 1000 }),
+
   /** Default for other endpoints: 60 requests per minute */
   default: rateLimiter({ maxRequests: 60, windowMs: 60 * 1000 }),
 };

@@ -83,13 +83,14 @@ describe("Auth routes", () => {
       expect(row.verified).toBe(false);
     });
 
-    it("returns 409 for duplicate email", async () => {
+    it("returns 200 with generic message for duplicate email (prevents enumeration)", async () => {
       await register();
       const res = await register();
-      expect(res.status).toBe(409);
+      expect(res.status).toBe(200);
 
       const data = await res.json();
-      expect(data.code).toBe("EMAIL_EXISTS");
+      expect(data.message).toBeDefined();
+      expect(data.code).toBeUndefined();
     });
 
     it("returns 400 for invalid email", async () => {
