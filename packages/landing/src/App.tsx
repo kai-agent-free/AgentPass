@@ -1891,11 +1891,13 @@ function LandingPage() {
       <Architecture />
       <McpTools />
       <QuickStart />
+      <CoinPayPayments />
     </>
   );
 }
 
 // Lazy-load demo page to keep landing bundle lean
+import CoinPayPayments from "./pages/CoinPayPayments";
 import { lazy, Suspense } from "react";
 import { Routes, Route } from "react-router-dom";
 const DemoPage = lazy(() => import("./pages/DemoPage.js"));
