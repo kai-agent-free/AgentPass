@@ -8,9 +8,6 @@
 import { Hono } from "hono";
 import type { Sql } from "../db/schema.js";
 
-const VERSION = "0.1.0";
-const startTime = Date.now();
-
 /**
  * Create the health-check router.
  *
