@@ -47,6 +47,12 @@ function Header() {
             Docs
           </a>
           <a
+            href="#coinpay-did"
+            className="text-sm text-gray-400 transition-colors hover:text-white"
+          >
+            Trust Score
+          </a>
+          <a
             href="/demo"
             className="text-sm font-medium text-emerald-400 transition-colors hover:text-emerald-300"
           >
@@ -1578,6 +1584,101 @@ function Architecture() {
   );
 }
 
+function CoinPayDID() {
+  const [repData, setRepData] = useState<any>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    fetch('https://coinpayportal.com/api/reputation/agent/did:key:z6MkwJuDjRkDjr9cD9iDzUXFrQW7eEvLEiY7tHHUQNComi7T/reputation')
+      .then(r => r.json())
+      .then(d => { setRepData(d); setLoading(false); })
+      .catch(() => setLoading(false));
+  }, []);
+
+  const tier = repData?.trust_tier || {};
+  const vector = repData?.trust_vector || {};
+  const dimLabels: Record<string, string> = { E: 'Earnings', P: 'Payments', B: 'Behavior', D: 'Delivery', R: 'Reliability', A: 'Attestations', C: 'Consistency' };
+
+  return (
+    <section id="coinpay-did" className="bg-gray-900 py-20 sm:py-28">
+      <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
+        <div className="mx-auto max-w-3xl text-center">
+          <div className="inline-flex items-center gap-2 rounded-full border border-indigo-500/20 bg-indigo-500/10 px-4 py-2 text-sm text-indigo-300 mb-6">
+            <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M9 12.75L11.25 15 15 9.75m-3-7.036A11.959 11.959 0 013.598 6 11.99 11.99 0 003 9.749c0 5.592 3.824 10.29 9 11.623 5.176-1.332 9-6.03 9-11.622 0-1.31-.21-2.571-.598-3.751h-.152c-3.196 0-6.1-1.248-8.25-3.285z" />
+            </svg>
+            CoinPay DID Verified
+          </div>
+          <h2 className="text-3xl font-bold text-white sm:text-4xl">
+            On-Chain Reputation via CoinPay DID
+          </h2>
+          <p className="mt-4 text-lg text-gray-400">
+            AgentPass agents build verifiable trust scores through the CoinPay DID reputation system — real economic activity, not self-reported claims.
+          </p>
+        </div>
+
+        <div className="mx-auto mt-12 max-w-2xl">
+          <div className="rounded-xl border border-indigo-500/30 bg-gradient-to-br from-gray-800/80 to-indigo-900/20 p-8 shadow-2xl">
+            <div className="flex items-center justify-between mb-6">
+              <div>
+                <h3 className="text-xl font-bold text-white">🌀 Kai Agent</h3>
+                <p className="text-sm text-gray-400 mt-1">Autonomous AI Agent</p>
+              </div>
+              <div className="flex gap-2">
+                <span className="inline-flex items-center gap-1 rounded-full border border-emerald-500/30 bg-emerald-500/20 px-3 py-1 text-xs font-semibold text-emerald-300">
+                  ✓ DID Verified
+                </span>
+                {!loading && tier.tier && (
+                  <span className="inline-flex items-center gap-1 rounded-full border border-indigo-500/30 bg-indigo-500/20 px-3 py-1 text-xs font-semibold text-indigo-300">
+                    Tier {tier.tier} — {tier.label || 'New'}
+                  </span>
+                )}
+              </div>
+            </div>
+
+            <div className="rounded-lg bg-gray-900/60 border border-gray-700 p-3 mb-6 font-mono text-xs text-indigo-300 break-all">
+              did:key:z6MkwJuDjRkDjr9cD9iDzUXFrQW7eEvLEiY7tHHUQNComi7T
+            </div>
+
+            {loading ? (
+              <div className="text-center text-gray-500 py-8">Loading reputation data...</div>
+            ) : repData ? (
+              <>
+                <div className="grid grid-cols-2 gap-4 mb-6">
+                  <div className="rounded-xl bg-gray-900/60 border border-gray-700 p-4 text-center">
+                    <div className="text-3xl font-bold text-indigo-400">{tier.score || 0}</div>
+                    <div className="text-xs text-gray-400 mt-1">Trust Score</div>
+                  </div>
+                  <div className="rounded-xl bg-gray-900/60 border border-gray-700 p-4 text-center">
+                    <div className="text-3xl font-bold text-indigo-400">{tier.tier || '?'}</div>
+                    <div className="text-xs text-gray-400 mt-1">{tier.label || 'New'} / {tier.risk_level || 'unknown'}</div>
+                  </div>
+                </div>
+
+                <div className="flex flex-wrap gap-2">
+                  {Object.entries(vector).map(([k, v]) => (
+                    <div key={k} className="rounded-lg bg-gray-900/60 border border-gray-700 px-3 py-2 text-sm">
+                      <span className="font-semibold text-indigo-400">{k}</span>
+                      <span className="text-gray-400"> {dimLabels[k] || k}: </span>
+                      <span className="text-white">{v as string}</span>
+                    </div>
+                  ))}
+                </div>
+              </>
+            ) : (
+              <div className="text-center text-gray-500 py-4">Could not load reputation data</div>
+            )}
+
+            <div className="mt-6 pt-4 border-t border-gray-700 text-center text-xs text-gray-500">
+              Powered by <a href="https://coinpayportal.com" target="_blank" rel="noopener noreferrer" className="text-indigo-400 hover:text-indigo-300">CoinPayPortal</a> DID Reputation System
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+  );
+}
+
 function McpTools() {
   const categories = [
     {
@@ -1889,6 +1990,7 @@ function LandingPage() {
       <ForOwners />
       <OwnerNotifications />
       <Architecture />
+      <CoinPayDID />
       <McpTools />
       <QuickStart />
       <CoinPayPayments />
@@ -1898,7 +2000,7 @@ function LandingPage() {
 
 // Lazy-load demo page to keep landing bundle lean
 import CoinPayPayments from "./pages/CoinPayPayments";
-import { lazy, Suspense } from "react";
+import { lazy, Suspense, useState, useEffect } from "react";
 import { Routes, Route } from "react-router-dom";
 const DemoPage = lazy(() => import("./pages/DemoPage.js"));
 

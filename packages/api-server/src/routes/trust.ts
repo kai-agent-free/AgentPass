@@ -328,7 +328,7 @@ export function createTrustRouter(db: Sql): Hono<{ Variables: AuthVariables }> {
 
     (metadata.external_attestations as ExternalAttestationFactor[]).push(attestation);
 
-    const { score, level, factors: _factors } = await recalculateAndPersist(
+    const { score, level, factors: _factors3 } = await recalculateAndPersist(
       passportId,
       metadata,
       row.created_at,
