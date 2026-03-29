@@ -171,7 +171,7 @@ export function createWebhookRouter(db: Sql): Hono<{ Variables: AuthVariables }>
 
     // Validate required fields
     if (!messageSid || !from || !to) {
-      console.error('[SMS Webhook] Missing required fields:', { messageSid, from, to });
+      console.error('[SMS Webhook] Missing required fields');
       return c.text('<?xml version="1.0" encoding="UTF-8"?><Response></Response>', 400, {
         'Content-Type': 'text/xml',
       });
@@ -186,9 +186,9 @@ export function createWebhookRouter(db: Sql): Hono<{ Variables: AuthVariables }>
         VALUES (${messageSid}, ${to}, ${from}, ${body || ''}, ${receivedAt})
       `;
 
-      console.log(`[SMS Webhook] Stored SMS ${messageSid} for ${to}`);
+      console.log('[SMS Webhook] Stored SMS notification');
     } catch (error) {
-      console.error('[SMS Webhook] Failed to store notification:', error);
+      console.error('[SMS Webhook] Failed to store notification:', error instanceof Error ? error.message : 'unknown error');
       return c.text('<?xml version="1.0" encoding="UTF-8"?><Response></Response>', 500, {
         'Content-Type': 'text/xml',
       });
