@@ -254,7 +254,7 @@ export class CaptchaService {
       }
 
       // Wait before next poll
-      await new Promise<void>((resolve, reject) => {
+      await new Promise<void>((resolve, _reject) => {
         const timer = setTimeout(resolve, pollIntervalMs);
         if (signal) {
           const onAbort = () => {

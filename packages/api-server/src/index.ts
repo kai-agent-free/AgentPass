@@ -25,6 +25,7 @@ import { createTelegramRouter } from "./routes/telegram.js";
 import { createMessagesRouter } from "./routes/messages.js";
 import { createSettingsRouter } from "./routes/settings.js";
 import { createCoinPayOAuthRouter } from "./routes/coinpay-oauth.js";
+import { createReputationRouter } from "./routes/reputation.js";
 import { createHealthRouter } from "./middleware/health.js";
 import { rateLimiters } from "./middleware/rate-limiter.js";
 import { requestLogger } from "./middleware/request-logging.js";
@@ -117,6 +118,7 @@ export async function createApp(connectionString: string = DATABASE_URL): Promis
   const settingsRouter = createSettingsRouter(db);
   const telegramRouter = createTelegramRouter(db);
   const coinpayOAuthRouter = createCoinPayOAuthRouter(db);
+  const reputationRouter = createReputationRouter(db);
   const healthRouter = createHealthRouter(db);
 
   app.route("/", healthRouter);
@@ -146,6 +148,8 @@ export async function createApp(connectionString: string = DATABASE_URL): Promis
   app.route("/telegram", telegramRouter);
   // CoinPay OAuth 2.0 / OIDC login
   app.route("/auth", coinpayOAuthRouter);
+  // DID reputation via CoinPay Reputation Protocol
+  app.route("/reputation", reputationRouter);
 
   // Demo service — "Login with AgentPass" native auth showcase
   const { app: demoApp } = createDemoApp(
