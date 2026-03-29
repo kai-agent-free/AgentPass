@@ -22,7 +22,8 @@ const KEY_LENGTH = 32; // 256-bit key
 
 /** HKDF parameters for vault key derivation */
 const HKDF_DIGEST = "sha256";
-const HKDF_SALT = "agentpass-vault";
+const HKDF_SALT_LEGACY = "agentpass-vault";
+const HKDF_SALT_LENGTH = 32; // 256-bit random salt
 const HKDF_INFO = "credential-vault-key";
 
 /**
@@ -108,26 +109,38 @@ export function decrypt(encoded: string, key: Buffer): string {
 }
 
 /**
+ * Generate a cryptographically random salt for HKDF key derivation.
+ *
+ * @returns A 32-byte random salt as a base64url string
+ */
+export function generateVaultSalt(): string {
+  return randomBytes(HKDF_SALT_LENGTH).toString("base64url");
+}
+
+/**
  * Derive a 32-byte AES-256 vault key from an Ed25519 private key using HKDF.
  *
- * Uses HKDF with SHA-256, a fixed salt and info string so the same
- * private key always produces the same vault key.
+ * When `salt` is provided, it is used as the HKDF salt (recommended for new vaults).
+ * When `salt` is omitted, falls back to the legacy static salt for backward compatibility.
  *
  * @param privateKey - base64url-encoded Ed25519 private key
+ * @param salt - Optional base64url-encoded random salt (recommended)
  * @returns A 32-byte Buffer suitable for AES-256-GCM
  */
-export async function deriveVaultKey(privateKey: string): Promise<Buffer> {
+export async function deriveVaultKey(privateKey: string, salt?: string): Promise<Buffer> {
   const ikm = Buffer.from(privateKey, "base64url");
 
   if (ikm.length === 0) {
     throw new Error("Private key must not be empty");
   }
 
+  const hkdfSalt = salt ? Buffer.from(salt, "base64url") : HKDF_SALT_LEGACY;
+
   const derived = await new Promise<Buffer>((resolve, reject) => {
     hkdf(
       HKDF_DIGEST,
       ikm,
-      HKDF_SALT,
+      hkdfSalt,
       HKDF_INFO,
       KEY_LENGTH,
       (err, derivedKey) => {

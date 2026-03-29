@@ -68,18 +68,17 @@ export function createWebhookRouter(db: Sql): Hono<{ Variables: AuthVariables }>
    * Returns list of pending notifications and marks them as retrieved.
    */
   app.get('/email-notifications/:address', requireAuth(db), async (c) => {
-    const owner = c.get("owner") as OwnerPayload;
+    const owner = c.get('owner') as OwnerPayload;
     const address = c.req.param('address').toLowerCase();
 
-    // Scope access: only allow retrieving notifications for addresses owned by the authenticated user
-    // Check if the address belongs to a passport owned by this user
-    const ownerPassports = await db<{ id: string }[]>`
-      SELECT id FROM passports
-      WHERE owner_email = ${owner.email}
-        AND (metadata->>'email_address' = ${address} OR owner_email = ${address})
+    // Scope to owner's own email address or passport email addresses
+    const ownerPassports = await db<{ owner_email: string }[]>`
+      SELECT DISTINCT owner_email FROM passports WHERE owner_email = ${address}
     `;
-    if (ownerPassports.length === 0) {
-      return c.json({ error: "Access denied: address does not belong to your account", code: "FORBIDDEN" }, 403);
+    const isOwnerEmail = owner.email.toLowerCase() === address;
+    const isPassportEmail = ownerPassports.length > 0 && ownerPassports[0]?.owner_email === owner.email;
+    if (!isOwnerEmail && !isPassportEmail) {
+      return c.json({ error: 'Access denied: address does not belong to you', code: 'FORBIDDEN' }, 403);
     }
 
     // Get all unprocessed notifications for this address
@@ -171,7 +170,7 @@ export function createWebhookRouter(db: Sql): Hono<{ Variables: AuthVariables }>
 
     // Validate required fields
     if (!messageSid || !from || !to) {
-      console.error('[SMS Webhook] Missing required fields');
+      console.error('[SMS Webhook] Missing required fields:', { messageSid, from, to });
       return c.text('<?xml version="1.0" encoding="UTF-8"?><Response></Response>', 400, {
         'Content-Type': 'text/xml',
       });
@@ -186,8 +185,9 @@ export function createWebhookRouter(db: Sql): Hono<{ Variables: AuthVariables }>
         VALUES (${messageSid}, ${to}, ${from}, ${body || ''}, ${receivedAt})
       `;
 
+      console.log(`[SMS Webhook] Stored SMS ${messageSid} for ${to}`);
     } catch (error) {
-      console.error('[SMS Webhook] Failed to store notification:', error instanceof Error ? error.message : 'unknown error');
+      console.error('[SMS Webhook] Failed to store notification:', error);
       return c.text('<?xml version="1.0" encoding="UTF-8"?><Response></Response>', 500, {
         'Content-Type': 'text/xml',
       });
@@ -206,17 +206,21 @@ export function createWebhookRouter(db: Sql): Hono<{ Variables: AuthVariables }>
    * Returns list of pending notifications and marks them as retrieved.
    */
   app.get('/sms-notifications/:phoneNumber', requireAuth(db), async (c) => {
-    const owner = c.get("owner") as OwnerPayload;
+    const owner = c.get('owner') as OwnerPayload;
     const phoneNumber = c.req.param('phoneNumber');
 
-    // Scope access: only allow retrieving notifications for phone numbers owned by the authenticated user
-    const ownerPassports = await db<{ id: string }[]>`
-      SELECT id FROM passports
-      WHERE owner_email = ${owner.email}
-        AND metadata->>'phone_number' = ${phoneNumber}
+    // Scope to owner's own phone — check settings table for phone association
+    const phoneRows = await db<{ value: string }[]>`
+      SELECT value FROM owner_settings
+      WHERE owner_id = ${owner.owner_id} AND key = 'phone_number' AND value = ${phoneNumber}
     `;
-    if (ownerPassports.length === 0) {
-      return c.json({ error: "Access denied: phone number does not belong to your account", code: "FORBIDDEN" }, 403);
+    // Also check if phone matches any passport metadata phone
+    const passportPhoneRows = await db<{ id: string }[]>`
+      SELECT id FROM passports
+      WHERE owner_email = ${owner.email} AND metadata->>'phone' = ${phoneNumber}
+    `;
+    if (phoneRows.length === 0 && passportPhoneRows.length === 0) {
+      return c.json({ error: 'Access denied: phone number does not belong to you', code: 'FORBIDDEN' }, 403);
     }
 
     // Get all unprocessed notifications for this phone number

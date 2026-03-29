@@ -17,6 +17,7 @@ import type { Sql } from "../db/schema.js";
 export interface OwnerPayload extends JWTPayload {
   owner_id: string;
   email: string;
+  role?: string;
 }
 
 /**
@@ -101,6 +102,7 @@ interface ApiKeyRow {
 interface OwnerRow {
   id: string;
   email: string;
+  role: string;
 }
 
 /**
@@ -130,7 +132,7 @@ export async function authenticateApiKey(
 
     // Resolve owner email
     const ownerRows = await db<OwnerRow[]>`
-      SELECT id, email FROM owners WHERE id = ${row.owner_id}
+      SELECT id, email, role FROM owners WHERE id = ${row.owner_id}
     `;
     const owner = ownerRows[0];
     if (!owner) continue;
@@ -141,6 +143,7 @@ export async function authenticateApiKey(
     return {
       owner_id: owner.id,
       email: owner.email,
+      role: owner.role,
     };
   }
 
@@ -196,6 +199,15 @@ export function requireAuth(db?: Sql) {
     // Fall back to JWT verification
     try {
       const payload = await verifyJwt(token);
+      // Resolve role from DB if available
+      if (db) {
+        const ownerRows = await db<OwnerRow[]>`
+          SELECT id, email, role FROM owners WHERE id = ${payload.owner_id}
+        `;
+        if (ownerRows[0]) {
+          payload.role = ownerRows[0].role;
+        }
+      }
       c.set("owner", payload);
       await next();
     } catch {
@@ -204,5 +216,22 @@ export function requireAuth(db?: Sql) {
         401,
       );
     }
+  };
+}
+
+/**
+ * Hono middleware that requires admin role.
+ * Must be used AFTER requireAuth middleware.
+ */
+export function requireAdmin() {
+  return async (c: Context, next: Next) => {
+    const owner = c.get("owner") as OwnerPayload | undefined;
+    if (!owner || owner.role !== "admin") {
+      return c.json(
+        { error: "Admin access required", code: "FORBIDDEN" },
+        403,
+      );
+    }
+    await next();
   };
 }

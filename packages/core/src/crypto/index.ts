@@ -16,4 +16,4 @@ export {
   verifyChallenge,
 } from "./signing.js";
 
-export { encrypt, decrypt, deriveVaultKey } from "./encryption.js";
+export { encrypt, decrypt, deriveVaultKey, generateVaultSalt } from "./encryption.js";
