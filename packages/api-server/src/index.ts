@@ -30,6 +30,7 @@ import { createReputationRouter } from "./routes/reputation.js";
 import { createHealthRouter } from "./middleware/health.js";
 import { rateLimiters } from "./middleware/rate-limiter.js";
 import { requestLogger } from "./middleware/request-logging.js";
+import { sanitizeBody } from "./middleware/sanitize-body.js";
 import { createDemoApp } from "./demo/demo-app.js";
 
 const PORT = parseInt(process.env.AGENTPASS_PORT || "3846", 10);
@@ -75,6 +76,9 @@ export async function createApp(connectionString: string = DATABASE_URL): Promis
     allowMethods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
     allowHeaders: ['Content-Type', 'Authorization', 'X-Webhook-Secret', 'X-AgentPass-ID', 'X-AgentPass-Signature', 'X-Request-ID'],
   }));
+
+  // Sanitize request bodies against prototype pollution
+  app.use("*", sanitizeBody());
 
   // Apply default rate limiting to all routes
   app.use("*", rateLimiters.default);
