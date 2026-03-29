@@ -186,7 +186,6 @@ export function createWebhookRouter(db: Sql): Hono<{ Variables: AuthVariables }>
         VALUES (${messageSid}, ${to}, ${from}, ${body || ''}, ${receivedAt})
       `;
 
-      console.log('[SMS Webhook] Stored SMS notification');
     } catch (error) {
       console.error('[SMS Webhook] Failed to store notification:', error instanceof Error ? error.message : 'unknown error');
       return c.text('<?xml version="1.0" encoding="UTF-8"?><Response></Response>', 500, {

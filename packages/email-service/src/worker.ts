@@ -27,12 +27,9 @@ export default {
       await storage.storeEmail(email);
 
       // Notify API server via webhook (fire and forget)
-      console.log(`Notifying API server: ${env.API_SERVER_URL}, secret: ${env.WEBHOOK_SECRET ? 'SET' : 'NOT SET'}`);
       ctx.waitUntil(
         notifyApiServer(email, env.API_SERVER_URL, env.WEBHOOK_SECRET)
       );
-
-      console.log(`Email received and stored: ${email.id} to ${email.to}`);
     } catch (error) {
       console.error('Failed to process email:', error);
       throw error;
@@ -204,7 +201,6 @@ async function notifyApiServer(
   secret: string
 ): Promise<void> {
   try {
-    console.log(`Sending webhook to: ${apiServerUrl}/webhook/email-received`);
     const response = await fetch(`${apiServerUrl}/webhook/email-received`, {
       method: 'POST',
       headers: {
@@ -222,8 +218,6 @@ async function notifyApiServer(
 
     if (!response.ok) {
       console.error(`API server webhook failed: ${response.status} ${response.statusText}`);
-    } else {
-      console.log(`Webhook sent successfully for email ${email.id}`);
     }
   } catch (error) {
     console.error('Failed to notify API server:', error);
